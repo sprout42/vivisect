@@ -11,6 +11,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <sys/ptrace.h>
+
 #include "wirestub.h"
 
 #define SA  struct sockaddr
@@ -105,6 +107,38 @@ wt_err_t send_errno(wt_ctx_t *ctx) {
     WT_CALL( sendsize( ctx->sock, sizeof(msg), &msg) );
     WT_CALL( sendsize( ctx->sock, sizeof(wt_err_t), &myerr) );
     WT_CALL( sendsize( ctx->sock, errlen, errstr ) );
+
+    WT_SUCCESS;
+    WT_CLEANUP;
+    WT_RETURN;
+}
+
+wt_err_t handle_msg_atch( wt_ctx_t *ctx ) {
+    WT_ENTRY;
+
+    printf("attach: %d\n", ctx->msgbody.atch->pid);
+    long pt = ptrace(PT_ATTACH, ctx->msgbody.atch->pid, 0, 0);
+    if ( pt == 0 ) {
+        WT_CALL( send_msg(ctx, WT_MSG_ATCH, 0, 0, NULL) );
+    } else {
+        WT_CALL( send_errno(ctx) );
+    }
+
+    WT_SUCCESS;
+    WT_CLEANUP;
+    WT_RETURN;
+}
+
+wt_err_t handle_msg_dtch( wt_ctx_t *ctx ) {
+    WT_ENTRY;
+
+    printf("detach: %d\n", ctx->msgbody.dtch->pid);
+    long pt = ptrace(PT_DETACH, ctx->msgbody.dtch->pid, 0, 0);
+    if ( pt == 0 ) {
+        WT_CALL( send_msg(ctx, WT_MSG_DTCH, 0, 0, NULL) );
+    } else {
+        WT_CALL( send_errno(ctx) );
+    }
 
     WT_SUCCESS;
     WT_CLEANUP;
@@ -221,6 +255,14 @@ wt_err_t handle_message( wt_ctx_t *ctx ) {
 
         case WT_MSG_LDIR:
             WT_CALL( handle_msg_ldir( ctx ) );
+            break;
+
+        case WT_MSG_ATCH:
+            WT_CALL( handle_msg_atch( ctx ) );
+            break;
+
+        case WT_MSG_DTCH:
+            WT_CALL( handle_msg_dtch( ctx ) );
             break;
 
         default:

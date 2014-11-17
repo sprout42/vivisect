@@ -11,6 +11,9 @@ WT_MSG_DERP     = msgtype('derp')
 WT_MSG_ERRO     = msgtype('erro')
 WT_MSG_FILE     = msgtype('file')
 WT_MSG_LDIR     = msgtype('ldir')
+WT_MSG_ATCH     = msgtype('atch')
+WT_MSG_DTCH     = msgtype('dtch')
+WT_MSG_EXEC     = msgtype('exec')
 
 def typestr(x):
     return struct.pack('<I',x)

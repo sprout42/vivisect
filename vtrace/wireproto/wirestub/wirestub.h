@@ -61,6 +61,14 @@ typedef struct wt_msg_helo {
     uint32_t    flags;
 } wt_msg_helo_t;
 
+typedef struct wt_msg_atch {
+    uint32_t pid;
+} wt_msg_atch_t;
+
+typedef struct wt_msg_dtch {
+    uint32_t pid;
+} wt_msg_dtch_t;
+
 typedef struct wt_msg_erro {
     uint32_t    err;
     char        msg[];
@@ -73,6 +81,8 @@ typedef struct wt_ctx {
     union {
         wt_bytes_t      bytes;
         wt_msg_helo_t  *helo;
+        wt_msg_atch_t  *atch;
+        wt_msg_dtch_t  *dtch;
         wt_msg_erro_t  *erro;
     } msgbody;
     wt_sock_t   sock;

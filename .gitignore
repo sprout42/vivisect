@@ -2,3 +2,6 @@
 *.swp
 *.py~
 .hg*
+
+vtrace/wireproto/wirestub/wireconst.h
+vtrace/wireproto/wirestub/wirestub
