@@ -25,11 +25,20 @@ class Linuxi386WireTrace(v_linux.Linuxi386Trace):
         # Pre-calc the index of the debug regs
         #self.dbgidx = self.archGetRegCtx().getRegisterIndex("debug0")
 
-    def platformOpenFile(self, path):
+    # overrides to shunt out linux behaviors...
+    def _initLibc(self): pass
+
+    def _ptrace_attach(self, pid):
+        self.wire.attach(pid)
+
+    def _wire_readlink(self, path):
+        return 'none'
+
+    def _wire_fileopen(self, path):
         return StringIO( self.wire.cat(path) )
 
-    def platformReadFile(self, path):
+    def _wire_filecat(self, path):
         return self.wire.cat(path)
 
-    def platformListDir(self, path):
+    def _wire_listdir(self, path):
         return self.wire.listdir(path)
