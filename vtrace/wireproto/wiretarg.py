@@ -82,6 +82,16 @@ class WireTarg:
         checkerro(hdr,body)
         return body[:-1].split('\x00')
 
+    def attach(self, pid):
+        atchmsg = struct.pack('<I', pid)
+        hdr,body = self.transmsg(WT_MSG_ATCH,atchmsg)
+        checkerro(hdr,body)
+
+    def detach(self, pid):
+        dtchmsg = struct.pack('<I', pid)
+        hdr,body = self.transmsg(WT_MSG_DTCH,dtchmsg)
+        checkerro(hdr,body)
+
 wireclasses = {
     ('linux','i386'): vt_wire_linux.Linuxi386WireTrace,
 }
@@ -105,7 +115,8 @@ def getWireTrace(host,port):
     return cls(wire)
 
 if __name__ == '__main__':
-    wire = getWireTarg('localhost',9999)
+    import sys
+    wire = getWireTarg(sys.argv[1],int(sys.argv[2]))
     print 'ARCH',wire.arch()
     print 'PLAT',wire.plat()
     print 'CAT' ,wire.cat('/etc/passwd')
@@ -120,8 +131,9 @@ if __name__ == '__main__':
         #x = file('/etc/passwd','rb').read()
         #x = wire.cat('/etc/passwd')
 
-    #trace = getWireTrace('localhost',9999)
+    trace = getWireTrace(sys.argv[1],int(sys.argv[2]))
+    trace.attach( int( sys.argv[3] ) )
     #for pid,proc in trace.ps():
         #print '%.8x %s' % (pid,proc.split()[0])
-    #trace.release()
+    trace.release()
 

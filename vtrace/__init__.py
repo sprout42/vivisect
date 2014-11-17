@@ -118,11 +118,17 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
     *meant* to be used from the API is contained and documented here.
     """
     def __init__(self, archname=None):
-        # For the crazy thread-call-proxy-thing
-        # (must come first for __getattribute__
-        self.requires_thread = {}
-        self.proxymeth = None # FIXME hack for now...
-        self._released = False
+
+        self.released = False
+
+        self.pid = None
+        self.tid = None
+        self.sig = None
+
+        self.threads = {}
+
+        self.signore = set()
+        self.delaybreaks = []
 
         # The universal place for all modes
         # that might be platform dependant...
@@ -134,14 +140,15 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         # to track stuff per-trace
         self.metadata = {}
 
-        self.initMode("RunForever", False, "Run until RunForever = False")
-        self.initMode("NonBlocking", False, "A call to wait() fires a thread to wait *for* you")
-        self.initMode("ThreadProxy", True, "Proxy necessary requests through a single thread (can deadlock...)")
-        self.initMode("SingleStep", False, "All calls to run() actually just step.  This allows RunForever + SingleStep to step forever ;)")
-        self.initMode("FastStep", False, "All stepi() will NOT generate a step event")
+        self._mode_init("runforever",doc="run the trace until it exits")
+        #self.initMode("RunForever", False, "Run until RunForever = False")
+        #self.initMode("NonBlocking", False, "A call to wait() fires a thread to wait *for* you")
+        #self.initMode("ThreadProxy", True, "Proxy necessary requests through a single thread (can deadlock...)")
+        #self.initMode("SingleStep", False, "All calls to run() actually just step.  This allows RunForever + SingleStep to step forever ;)")
+        #self.initMode("FastStep", False, "All stepi() will NOT generate a step event")
 
-        self.regcache = None
-        self.regcachedirty = False
+        #self.regcache = None
+        #self.regcachedirty = False
         self.sus_threads = {}   # A dictionary of suspended threads
 
         # Set if we're a server and this trace is proxied
@@ -152,28 +159,25 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         if archname == None:
             archname = envi.getCurrentArch()
 
-        arch = envi.getArchByName( archname )
-        self.setMeta('Architecture', archname)
-        self.arch = envi.getArchModule(name=archname)
+        #arch = envi.getArchByName( archname )
+        #self.setMeta('Architecture', archname)
+        #self.arch = envi.getArchModule(name=archname)
 
         e_resolv.SymbolResolver.__init__(self, width=self.arch.getPointerSize())
         e_mem.IMemory.__init__(self, arch=arch)
         e_reg.RegisterContext.__init__(self)
 
         # Add event numbers to here for auto-continue
-        self.auto_continue = [NOTIFY_LOAD_LIBRARY, NOTIFY_CREATE_THREAD, NOTIFY_UNLOAD_LIBRARY, NOTIFY_EXIT_THREAD, NOTIFY_DEBUG_PRINT]
+        self.autocont = set(['libinit','libfini','threadinit','threadexit','dbgprint'])
+        #self.auto_continue = [NOTIFY_LOAD_LIBRARY, NOTIFY_CREATE_THREAD, NOTIFY_UNLOAD_LIBRARY, NOTIFY_EXIT_THREAD, NOTIFY_DEBUG_PRINT]
 
     def execute(self, cmdline):
         """
-        Start a new process and debug it
+        Execute a new process from the given command.
         """
-        if self.isAttached():
-            raise Exception("ERROR - Tracer must first be detached before you can execute()")
-
-        pid = self.platformExec(cmdline)
-        self._justAttached(pid)
-        self.setMeta('ExecCommand', cmdline)
-        self.wait()
+        self.pid = self._plat_exec(cmdline)
+        self.metadata['cmdline'] = cmdline
+        self._hook_fire('procinit',{'pid':pid,'cmdline':cmdline})
 
     def parseOpcodes(self, num, va=None):
         '''
@@ -194,18 +198,19 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
 
         return ops
 
-    def getCurrentSignal(self):
+    def getCurSignal(self):
         '''
         Retrieve the current signal/exception posted to the process.
+
         If there are no pending signals/exceptions the API will return
         None.  For POSIX systems, this will be a traditional POSIX signal.
         For Windows systems it will be a current exception code (if any).
 
         Example: sig = trace.getCurrentSignal()
         '''
-        return self.platformGetSignal()
+        return self.sig
 
-    def setCurrentSignal(self, sig=None):
+    def setCurSignal(self, sig=None):
         '''
         Set the currently pending signal for delivery to the target process on
         continue.  This is intended for use by programs wishing the mask or
@@ -213,123 +218,166 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
 
         Example:  trace.setCurrentSignal(None)
         '''
-        return self.platformSetSignal(sig)
+        self.sig = sig
 
-    def addIgnoreSignal(self, code, address=0):
+    def addSigIgnore(self, sig):
         """
-        By adding an IgnoreSignal you tell the tracer object to
-        supress the notification of a particular type of signal.
-        In POSIX, these are regular signals, in Win32, these
-        are exception codes.  This is mostly useful in RunForever
-        mode because you still need the process to begin running again.
-        (these may be viewed/modified by the metadata key "IgnoredSignals")
-        FIXME: make address do something.
-        """
-        self.getMeta("IgnoredSignals").append(code)
+        Tell the tracer to ignore ( auto continue ) a signal.
 
-    def delIgnoreSignal(self, code, address=0):
+        If the specified signal/exception code is caught, tracer
+        execution continues as quickly as possible.  Used to "silence"
+        C++ exceptions, SIGCHLD exits, etc...
+
+        Example:
+                t.addSigIgnore(sig)
+
         """
-        See addIgnoreSignal for a description of signal ignoring.
-        This removes an ignored signal and re-enables it's delivery.
+        self.signore.add(sig)
+
+    def delSigIgnore(self, sig):
         """
-        self.getMeta("IgnoredSignals").remove(code)
+        Remove a signal from the ignores list.
+
+        Example:
+            t.delSigIgnore(0xc010111c)
+        """
+        self.signore.remove(code)
 
     def attach(self, pid):
         """
         Attach to a new process ID.
         """
-        if self.isAttached():
-            self.detach()
+        self._plat_attach(pid)
+        self.pid = pid
+        self.attached = True
 
-        try:
-            self.platformAttach(pid)
-            self._justAttached(pid)
-            self.wait()
-        except Exception, msg:
-            raise PlatformException(str(msg))
+        self._hook_fire('procinit',{'pid':pid})
+
+        # we may have an autocont on procinit...
+        if self.wantrun():
+            self.run()
 
     def stepi(self):
         """
-        Single step the target process ONE instruction (and do
-        NOT activate breakpoints for the one step). Also, we
-        don't deliver pending signals for the single step...
-        Use the mode FastStep to allow/suppress notifier callbacks on step
+        Execute the next single instruction.
         """
-        self.requireNotRunning()
+        self._sync_cache()
+        self._plat_stepi()
 
-        # Since we don't go through the normal run/wait
-        # code, we have a little house-keeping to do...
-        self.curbp = None
+    def wantrun(self):
+        '''
+        Check for conditions that would cause/prevent continued execution.
+        '''
+        if not self.attached:
+            return False
 
-        self._syncRegs()
-        self.platformStepi()
-        event = self.platformWait()
-        self.platformProcessEvent(event)
+        if self.exited:
+            return False
 
-    def run(self, until=None):
+        if self.getMode("runforever"):
+            return True
+
+        if self.runagain:
+            return True
+
+        return False
+
+    def run(self, addr=None):
         """
-        Allow the traced target to continue execution.  (Depending on the mode
-        "Blocking" this will either block until an event, or return immediately)
-        Additionally, the argument until may be used to cause execution to
-        continue until the specified address is reached (internally uses and
-        removes a breakpoint).
+        Continue process execution until the next event.
+        Optionally specify addr=<va> to run until a specific address.
+
+        NOTE: this API will block.
         """
-        self.requireAttached()
-        self.requireNotRunning()
-        self.requireNotExited()
+        if addr != None:
 
-        if self.getMode("SingleStep", False):
-            self.steploop()
+            def stoprunning(addr):
+                self.delBreakByAddr(addr)
+                self.modes['runforever'] = False
 
-        else:
-            if until != None:
-                self.setMode("RunForever", True)
-                self.addBreakpoint(StopAndRemoveBreak(until))
+            self.modes['runforever'] = True
+            self.addBreakByAddr(addr,breakfunc=stoprunning)
 
-            self._doRun()
-            self.wait()
+        self.runagain = True
+        while self.wantrun():
+            self._sync_torun()
+            self._plat_run()
 
-    def runAgain(self, val=True):
-        """
-        The runAgain() method may be used from inside a notifier
-        (Notifier, Breakpoint, Watchpoint, etc...) to inform the trace
-        that once event processing is complete, it should continue
-        running the trace.
-        """
-        self.runagain = val
+    def _sync_torun(self):
+        self._check_delaybreaks()
+
+        pc = self.getpc()
+        bi = self.breaks.get(pc)
+
+        # if we are at a break, step past it
+        if bi != None and bi.get('enabled'):
+            self.stepi()
+
+        self._write_breakpoints()
+        self._sync_cache()
+
+    def getpc(self):
+        '''
+        Terse version of getProgramCounter()
+        '''
+        return self.getProgramCounter()
+
+    def getsp(self):
+        '''
+        Terse version of getStackCounter()
+        '''
+        return self.getStackCounter()
+
+    def getreg(self, name):
+        '''
+        Terse version of getRegsiterByName()
+        '''
+        return self.getRegisterByName(name)
+
+    def setreg(self, name, valu):
+        '''
+        Terse version of setRegisterByName()
+        '''
+        return self.setRegisterByName(name,valu)
+
+    def getmem(self, va, size):
+        '''
+        Terse version of readMemory()
+        '''
+        return self.readMemory(va,size)
+
+    def setmem(self, va, bytez):
+        '''
+        Terse version of writeMemory()
+        '''
+        return self.writeMemory(va,bytez)
 
     def kill(self):
         """
         Kill the target process for this trace (will result in process
         exit and fire appropriate notifiers)
         """
-        self.requireAttached()
-        self.requireNotExited()
-        self.platformKill()
+        return self._plat_pskill( self.pid )
 
     def detach(self):
         '''
         Detach from the currently attached process.
         '''
-        self.requireNotRunning()
-        self.fireNotifiers(NOTIFY_DETACH)
-        self._syncRegs()
-        self.platformDetach()
+        self._sync_cache()
+        self._plat_detach() #platformDetach()
         self.attached = False
-        self.pid = 0
-        self.mapcache = None
 
-    def release(self):
-        '''
-        Release resources for this tracer.  This API should be called
-        once you are done with the trace.
-        '''
-        if not self._released:
-            self._released = True
-            if self.attached:
-                self.detach()
-            self._cleanupResources()
-            self.platformRelease()
+    #def release(self):
+        #'''
+        #Release resources for this tracer.  This API should be called
+        #once you are done with the trace.
+        #'''
+        #if not self.released:
+            #self.released = True
+            #if self.attached:
+                #self.detach()
+            #self._cleanupResources()
+            #self._plat_release()
 
     def getPid(self):
         """
@@ -458,15 +506,27 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
                     ret.append(sym)
         return ret
 
-    def getRegisterContext(self, threadid=None):
+    def getRegisterContext(self, tid=None):
         """
         Retrieve the envi.registers.RegisterContext object for the
         specified thread.  Use this API to iterate over threads
         register values without setting the global tracer thread context.
         """
-        if threadid == None:
-            threadid = self.getMeta("ThreadId")
-        return self._cacheRegs(threadid)
+        if tid == None:
+            tid = self.tid
+
+        regcache = self.cache.get('regs')
+        if regcache == None:
+            regcache = {}
+            self.cache['regs'] = regcache
+
+        regctx = regcache.get(tid)
+        if regctx == None:
+            regctx = self._plat_getregctx(tid)
+            regctx.setIsDirty(False)
+            regcache[tid] = regctx
+
+        return regctx
 
 #######################################################################
 #
@@ -486,41 +546,38 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
 
 #######################################################################
 
-    def allocateMemory(self, size, perms=e_mem.MM_RWX, suggestaddr=0):
+    def allocateMemory(self, size, perms=e_mem.MM_RWX, addr=None):
         """
-        Allocate a chunk of memory inside the target process' address
-        space.  Memory wil be mapped rwx unless otherwise specified with
-        perms=envi.memory.MM_FOO values. Optionally you may *suggest* an address
-        to the allocator, but there is no guarentee.  Returns the mapped
-        memory address.
-        """
-        self.requireNotRunning()
-        self.mapcache = None # We may have a new memory map
-        return self.platformAllocateMemory(size, perms=perms, suggestaddr=suggestaddr)
+        Allocate a chunk of memory inside the target process.
 
-    def protectMemory(self, va, size, perms):
+        Memory wil be mapped rwx unless otherwise specified with
+        perms=envi.memory.MM_FOO values. Optionally you may *suggest* an
+        address to the allocator, but there is no guarentee.  Returns the
+        mapped memory address.
+        """
+        self.cache.pop('memmaps',None)
+        return self._plat_memalloc(size, perms=perms, addr=addr)
+
+    def protectMemory(self, addr, size, perms):
         """
         Change the page protections on the specified region of memory.
+
         See envi.memory for perms values.
         """
-        self.requireNotRunning()
-        self.mapcache = None # We may have new memory protections
-        return self.platformProtectMemory(va, size, perms)
+        self.cache.pop('memmaps',None)
+        return self._plat_memprotect(addr, size, perms)
 
     def readMemory(self, address, size):
         """
-        Read memory from address.  Areas that are NOT valid memory will be read
-        back as \x00s (this probably goes in a mixin soon)
+        Read process memory from the specified address.
         """
-        self.requireNotRunning()
-        return self.platformReadMemory(long(address), long(size))
+        return self._plat_memread(long(address), long(size))
 
-    def writeMemory(self, address, bytez):
+    def writeMemory(self, addr, bytez):
         """
-        Write the given bytes to the address in the current trace.
+        Write the given bytes to the address in the current process.
         """
-        self.requireNotRunning()
-        self.platformWriteMemory(long(address), bytez)
+        self._plat_memwrite(long(address), bytez)
 
     def searchMemory(self, needle, regex=False):
         """
@@ -567,34 +624,25 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         not only will the default be returned, but the key will
         be set to the default specified.
         """
-        if default != None:
-            if not self.metadata.has_key(name):
-                self.metadata[name] = default
-        return self.metadata.get(name, None)
+        return self.metadata.get(name,default)
 
-    def hasMeta(self, name):
+    def getMode(self, name):
         """
-        Check to see if a metadata key exists... Mostly un-necessary
-        as getMeta() with a default will set the key to the default
-        if non-existant.
-        """
-        return self.metadata.has_key(name)
+        Determine if the given mode is enabled.
 
-    def getMode(self, name, default=False):
+        Example:
+            if t.getMode('foomode'):
+                print('the trace is in foo mode!')
         """
-        Get the value for a mode setting allowing
-        for a clean default...
-        """
-        return self.modes.get(name, default)
+        return self.modes.get(name,False)
 
     def setMode(self, name, value):
         """
-        Set a mode setting...  This is ONLY valid
-        if that mode has been iniitialized with
-        initMode(name, value).  Otherwise, it's an
-        unsupported mode for this platform ;)  cute huh?
-        This way, platform sections can cleanly setmodes
-        and such.
+        Enable/disable various modes within the tracer.
+
+        well defined modes:
+            runforever
+
         """
         if not self.modes.has_key(name):
             raise Exception("Mode %s not supported on this platform" % name)
@@ -608,8 +656,7 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         NOTE: This method will likely cause the trace to run.  Do not call from
               within a notifier!
         """
-        self.requireNotRunning()
-        self.platformInjectSo(filename)
+        self._plat_injectso(filename)
 
     def ps(self):
         """
@@ -617,169 +664,82 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         system.
         (pid, name)
         """
-        return self.platformPs()
+        return self._plat_pslist()
 
-    def addBreakByExpr(self, symname, fastbreak=False):
+    def addBreakByExpr(self, expr, mode=None, breakfunc=None):
         '''
-        Add a breakpoint by resolving an expression.  This will create
-        the Breakpoint object for you and add it to the trace.  It
-        returns the newly created breakpoint id.
+        Add a breakpoint by expression.  If the expression is *not* resolved
+        immediately, the it is added to a list of "delayed" breaks which
+        will be added once the expression resolves to an address.
 
-        Optionally, set fastbreak=True to have the breakpoint behave in
-        "fast break" mode which automatically continues execution and does
-        not fire notifiers for the breakpoint.
-
-        Example: trace.addBreakByExpr('kernel32.CreateFileA + ecx')
+        Example:
+            trace.addBreakByExpr('kernel32.CreateFileA + ecx')
         '''
-        bp = Breakpoint(None, expression=symname)
-        bp.fastbreak = fastbreak
-        return self.addBreakpoint(bp)
+        try:
+            addr = self.parseExpression(expr)
+            self.addBreakByAddr(addr,mode=mode,breakfunc=breakfunc)
+        except Exception, e:
+            self.delaybreaks.append( (expr,mode,breakfunc) )
 
-    def addBreakByAddr(self, va, fastbreak=False):
+    def _check_delaybreaks(self):
+        delays = self.delaybreaks
+
+        self.delaybreaks = []
+        for delay in delays:
+            expr,mode,breakfunc = delay
+            try:
+                addr = self.parseExpression(expr)
+                self.addBreakByAddr(addr,mode=mode,breakfunc=breakfunc)
+            except Exception, e:
+                self.delaybreaks.append( delay )
+
+    def addBreakByAddr(self, addr, mode=None, breakfunc=None):
         '''
-        Add a breakpoint by address.  This will create the Breakpoint
-        object for you and add it to the trace.  It returns the newly
-        created breakpoint id.
+        Add a breakpoint by address.
 
-        Optionally, set fastbreak=True to have the breakpoint behave in
-        "fast break" mode which automatically continues execution and does
-        not fire notifiers for the breakpoint.
+        Optional breakfunc:
+            breakfunc(addr) will be called back on breakpoint hit
 
-        Example: trace.addBreakByAddr(0x7c770308)
+        Optional mode:
+            * fast      - tightest loop, minimal callbacks, no other break cleanup
+            * stealth   - *only* triggers breakfunc callbacks (used to emulate other hooks)
+
+        Example:
+            def breakhit(addr):
+                print('hit my break!')
+
+            trace.addBreakByAddr(0x7c770308, breakfunc=breakhit)
         '''
-        bp = Breakpoint(va)
-        bp.fastbreak = fastbreak
-        return self.addBreakpoint(bp)
+        info = self.breaks.get(addr)
+        if info == None:
+            info = {'mode':mode,'breakfuncs':[]}
+            self.breaks[addr] = info
 
-    def addBreakpoint(self, breakpoint):
-        """
-        Add a breakpoint/watchpoint to the trace.  The "breakpoint" argument
-        is a vtrace Breakpoint/Watchpoint object or something that extends it.
+        if breakfunc != None:
+            info['breakfuncs'].append(breakfunc)
 
-        To add a basic breakpoint use:
-        trace.addBreakpoint(vtrace.Breakpoint(address))
-
-        NOTE: expression breakpoints do *not* get evaluated in fastbreak mode
-
-        This will return the internal ID given to the new breakpoint
-        """
-        breakpoint.inittrace(self)
-
-        breakpoint.id = self.nextBpId()
-        addr = breakpoint.resolveAddress(self)
-
-        if addr == None:
-            self.bpbyid[breakpoint.id] = breakpoint
-            self.deferred.append(breakpoint)
-            return breakpoint.id
-
-        if self.breakpoints.has_key(addr):
-            raise Exception("ERROR: Duplicate break for address 0x%.8x" % addr)
-
-        self.bpbyid[breakpoint.id] = breakpoint
-        self.breakpoints[addr] = breakpoint
-
-        # fastbreaks are always active... (except when they're not...)
-        if breakpoint.fastbreak:
-            breakpoint.activate(self)
-
-        return breakpoint.id
-
-    def removeBreakpoint(self, id):
-        """
-        Remove the breakpoint with the specified ID
-        """
-        self.requireAttached()
-        bp = self.bpbyid.pop(id, None)
-        if bp != None:
-            bp.deactivate(self)
-            if bp in self.deferred:
-                self.deferred.remove(bp)
-            else:
-                self.breakpoints.pop(bp.address, None)
-
-            # If the bp is also curbp, set curbp to None
-            if self.curbp == bp:
-                self.curbp = None
-
-        # Remove cached breakpoint code
-        Breakpoint.bpcodeobj.pop(id, None)
-
-    def getCurrentBreakpoint(self):
-        """
-        Return the current breakpoint otherwise None
-        """
-        return self.curbp
-
-    def getBreakpoint(self, id):
-        """
-        Return a reference to the breakpoint with the requested ID.
-
-        NOTE: NEVER set locals or use things like setBreakpointCode()
-        method on return'd breakpoint objects as they may be remote
-        and would then be *coppies* of the bp objects. (use the trace's
-        setBreakpointCode() instead).
-        """
-        return self.bpbyid.get(id)
-
-    def getBreakpointByAddr(self, va):
+    def delBreakByAddr(self, addr):
         '''
-        Return the breakpoint object (or None) for a given virtual address.
+        Remove a breakpoint by address.
         '''
-        return self.breakpoints.get(va)
+        self.breaks.pop(addr,None)
 
-    def getBreakpoints(self):
-        """
-        Return a list of the current breakpoints.
-        """
-        return self.bpbyid.values()
+    def setBreakEnabled(self, addr, status):
+        '''
+        Enable/Disable breakpoints.
 
-    def getBreakpointEnabled(self, bpid):
-        """
-        An accessor method for returning if a breakpoint is
-        currently enabled.
-        NOTE: code which wants to be remote-safe should use this
-        """
-        bp = self.getBreakpoint(bpid)
-        if bp == None:
-            raise Exception("Breakpoint %d Not Found" % bpid)
-        return bp.isEnabled()
+        Example:
+            t.setBreakEnabled(0x41414100,False)
+        '''
+        if self.breaks.get(addr) == None:
+            raise Exception('invalid break addr: 0x%.8x' % addr)
 
-    def setBreakpointEnabled(self, bpid, enabled=True):
-        """
-        An accessor method for setting a breakpoint enabled/disabled.
+        self.breakstatus[addr] = status
 
-        NOTE: code which wants to be remote-safe should use this
-        """
-        bp = self.getBreakpoint(bpid)
-        if bp == None:
-            raise Exception("Breakpoint %d Not Found" % bpid)
-        if not enabled: # To catch the "disable" of fastbreaks...
-            bp.deactivate(self)
-        return bp.setEnabled(enabled)
-
-    def setBreakpointCode(self, bpid, pystr):
-        """
-        Because breakpoints are potentially on the remote debugger
-        and code is not pickleable in python, special access methods
-        which takes strings of python code are necessary for the
-        vdb interface to quick script breakpoint code.  Use this method
-        to set the python code for this breakpoint.
-        """
-        bp = self.getBreakpoint(bpid)
-        if bp == None:
-            raise Exception("Breakpoint %d Not Found" % bpid)
-        bp.setBreakpointCode(pystr)
-
-    def getBreakpointCode(self, bpid):
-        """
-        Return the python string of user specified code that will run
-        when this breakpoint is hit.
-        """
-        bp = self.getBreakpoint(bpid)
-        if bp != None:
-            return bp.getBreakpointCode()
-        return None
+    def isBreakEnabled(self, addr):
+        if self.breaks.get(addr) == None:
+            raise Exception('invalid break addr: 0x%.8x' % addr)
+        return self.breakstatus.get(addr,True)
 
     def call(self, address, args, convention=None):
         """
@@ -793,74 +753,31 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         Additionally, a "convention" string may be specified that the underlying
         platform may be able to interpret...
         """
-        self.requireNotRunning()
         return self.platformCall(address, args, convention)
-
-    def registerNotifier(self, event, notifier):
-        """
-        Register a notifier who will be called for various
-        events.  See NOTIFY_* constants for handler hooks.
-        """
-        nlist = self.notifiers.get(event, None)
-        if nlist:
-            nlist.append(notifier)
-        else:
-            nlist = []
-            nlist.append(notifier)
-            self.notifiers[event] = nlist
-
-    def deregisterNotifier(self, event, notifier):
-        nlist = self.notifiers.get(event, [])
-        if notifier in nlist:
-            nlist.remove(notifier)
-
-    def getNotifiers(self, event):
-        return self.notifiers.get(event, [])
-
-    def requireNotExited(self):
-        '''
-        Call in a method that requires the trace to have not exited.
-        '''
-        if self.exited:
-            raise Exception('ERROR - Request invalid for trace which exited')
-
-    def requireNotRunning(self):
-        '''
-        Call in a method that requires the debugger the be attached and not
-        running.
-        '''
-        self.requireAttached()
-        if self.isRunning():
-            raise Exception('ERROR - trace is running; use "break" before running the specified command')
-
-    def requireAttached(self):
-        '''
-        Call in a method that requires the debugger to be attached.
-        '''
-        if not self.attached:
-            raise Exception('ERROR - attach to a process first')
 
     def getFds(self):
         """
-        Get a list of (fd, type, bestname) pairs.  This is MOSTLY useful
-        for HUMON consumtion...  or giving HUMONs consumption...
+        Get a list of (fd, type, repr) tuples for open descriptors.
         """
-        self.requireNotRunning()
-        if not self.fds:
-            self.fds = self.platformGetFds()
-        return self.fds
+        fds = self.cache.get('fds')
+        if fds == None:
+            fds = self._plat_getfds()
+            self.cache['fds'] = fds
+        return fds
 
     def getMemoryMaps(self):
         """
-        Return a list of the currently mapped memory for the target
-        process.  This is acomplished by calling the platform's
-        platformGetMaps() mixin method.  This will also cache the
-        results until CONTINUE.  The format is (addr, len, perms, file).
+        Retrieve the list of memory maps for the process.
+
+        Example:
+            for addr,size,perms,file in t.getMemoryMaps():
+                print('%.8x - %s' % (addr,file))
         """
-        self.requireNotRunning()
-        if not self.mapcache:
-            self.mapcache = self.platformGetMaps()
-        return self.mapcache
+        mmaps = self.cache.get('mmaps')
+        if mmaps == None:
+            mmaps = self._plat_memmaps()
+            self.cache['mmaps'] = mmaps
+        return mmaps
 
     def getMemoryFault(self):
         '''
@@ -901,29 +818,57 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         '''
         return False
 
-    def enableAutoContinue(self, event):
-        """
-        Put the tracer object in to AutoContinue mode
-        for the specified event.  To make all events
-        continue running see RunForever mode in setMode().
-        """
-        if event not in self.auto_continue:
-            self.auto_continue.append(event)
+    #def enableAutoContinue(self, event):
+        #"""
+        #Put the tracer object in to AutoContinue mode
+        #for the specified event.  To make all events
+        #continue running see RunForever mode in setMode().
+        #"""
+        #if event not in self.auto_continue:
+            #self.auto_continue.append(event)
 
-    def disableAutoContinue(self, event):
-        """
-        Disable Auto Continue for the specified
-        event.
-        """
-        if event in self.auto_continue:
-            self.auto_continue.remove(event)
+    def addAutoCont(self, evtname):
+        '''
+        Enable auto-continue behavior for the specified event name.
 
-    def getAutoContinueList(self):
-        """
-        Retrieve the list of vtrace notification events
-        that will be auto-continued.
-        """
-        return list(self.auto_continue)
+        Example:
+
+            t.addAutoCont('libinit')
+            # we now continue running on library loads
+        '''
+        self.autocont.add(hookname)
+
+    def delAutoCont(self, evtname):
+        '''
+        Disable auto-continue behavior for the specified event name.
+
+        Example:
+
+            t.delAutoCont('threadinit')
+            # we now stop on thread creations
+        '''
+        self.autocont.remove(hookname)
+
+    def getAutoCont(self):
+        '''
+        Get a list of the current auto-continue events.
+        '''
+        return list(self.autocont)
+
+    #def disableAutoContinue(self, event):
+        #"""
+        #Disable Auto Continue for the specified
+        #event.
+        #"""
+        #if event in self.auto_continue:
+            #self.auto_continue.remove(event)
+
+    #def getAutoContinueList(self):
+        #"""
+        #Retrieve the list of vtrace notification events
+        #that will be auto-continued.
+        #"""
+        #return list(self.auto_continue)
 
     def parseExpression(self, expression):
         """
@@ -935,30 +880,37 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         locs = VtraceExpressionLocals(self)
         return long(e_expr.evaluate(expression, locs))
 
-    def sendBreak(self):
+    def sendBreak(self, timeout=None):
         """
         Send an asynchronous break signal to the target process.
-        This is only valid if the target is actually running...
-        """
-        self.requireAttached()
-        self.setMode("RunForever", False)
-        self.setMeta("ShouldBreak", True)
-        self.platformSendBreak()
-        time.sleep(0.01)
-        # If we're non-blocking, we gotta wait...
-        if self.getMode("NonBlocking", True):
-            while self.isRunning():
-                time.sleep(0.01)
 
-    def getStackTrace(self):
+        If timeout is specified, block until either timeout seconds
+        or the process has stopped.
+        """
+        self.breaking = True
+        self.modes['runforever'] = False
+
+        if not wait:
+            return self._plat_sendbreak()
+
+        evt = threading.Event()
+        def waitbreak(evtname,evtinfo):
+            evt.set()
+            self.delTraceHook('break',waitbreak)
+
+        self.addTraceHook('break',waitbreak)
+
+        self._plat_sendbreak()
+        return evt.wait(timeout=timeout)
+
+    def getStackTrace(self, tid=None):
         """
         Returns a list of (instruction pointer, stack frame) tuples.
+
         If stack tracing results in an error, the error entry will
-        be (-1, -1).  Otherwise most platforms end up with 0, 0 as
-        the top stack frame
+        be (-1, -1).
         """
-        # FIXME thread id argument!
-        return self.archGetStackTrace()
+        return self._plat_stacktrace(tid=tid)
 
     def getThreads(self):
         """
@@ -967,28 +919,28 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         the top of the stack for that thread, or the TEB on
         win32
         """
-        if not self.threadcache:
-            self.threadcache = self.platformGetThreads()
-        return self.threadcache
+        threads = self.cache.get('threads')
+        if threads == None:
+            threads = self._plat_getthreads()
+            self.cache['threads'] = threads
+        return threads
 
     def getCurrentThread(self):
         '''
         Return the thread id of the currently selected thread.
         '''
-        return self.getMeta('ThreadId')
+        return self.tid
 
-    def selectThread(self, threadid):
+    def selectThread(self, tid):
         """
         Set the "current thread" context to the given thread id.
         (For example stack traces and register values will depend
         on the current thread context).  By default the thread
         responsible for an "interesting event" is selected.
         """
-        if threadid not in self.getThreads():
-            raise Exception("ERROR: Invalid threadid chosen: %d" % threadid)
-        self.requireNotRunning()
-        self.platformSelectThread(threadid)
-        self.setMeta("ThreadId", threadid)
+        if self.threads.get(tid) == None:
+            raise Exception('invalid thread id: %s' % tid)
+        self.tid = tid
 
     def isThreadSuspended(self, threadid):
         """
@@ -996,49 +948,55 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         """
         return self.sus_threads.get(threadid, False)
 
-    def suspendThread(self, threadid):
+    def suspendThread(self, tid):
         """
-        Suspend a thread by ID.  This will mean that on continuing
-        the trace, the suspended thread will not be scheduled.
+        Suspend a thread.
+        ( thread no longer executes on process continue )
+
+        Example:
+            t.suspendThread( tid )
         """
-        self.requireNotRunning()
         if self.sus_threads.get(threadid):
             raise Exception("The specified thread is already suspended")
-        if threadid not in self.getThreads().keys():
-            raise Exception("There is no thread %d!" % threadid)
-        self.platformSuspendThread(threadid)
-        self.sus_threads[threadid] = True
+        if self.threads.get(tid) == None:
+            raise Exception("invalid thread id: %s" % tid)
+        self._plat_susthread(tid)
+        self.sus_threads[tid] = True
 
-    def resumeThread(self, threadid):
+    def resumeThread(self, tid):
         """
         Resume a suspended thread.
         """
-        self.requireNotRunning()
-        if not self.sus_threads.get(threadid):
-            raise Exception("The specified thread is not suspended")
-        self.platformResumeThread(threadid)
-        self.sus_threads.pop(threadid)
+        #self.requireNotRunning()
+        if not self.sus_threads.get(tid)
+            raise Exception('thread is not suspended: %s' % tid)
+        self._plat_resthread(tid)
+        self.sus_threads.pop(tid)
 
     def injectThread(self, pc):
         """
-        Create a new thread inside the target process.  This thread
-        will begin execution on the next process run().
-        """
-        self.requireNotRunning()
-        #self.platformInjectThread(pc)
-        pass
+        Inject a thread executing at the specified address.
 
-    def joinThread(self, threadid):
+        Example:
+            t.injectThread( shellcode )
+        """
+        self._plat_injthread(pc)
+
+    def joinThread(self, tid, timeout=None):
         '''
         Run the trace in a loop until the specified thread exits.
         '''
-        self.setMode('RunForever', True)
-        self._join_thread = threadid
-        # Temporarily make run/wait blocking
-        nb = self.getMode('NonBlocking')
-        self.setMode('NonBlocking', False)
-        self.run()
-        self.setMode('NonBlocking', nb)
+        scope = {}
+        evt = threading.Event()
+        def hookexit(evtname,evtinfo):
+            if evtinfo.get('tid') == tid:
+                evt.set()
+            scope['exit'] = evtinfo.get('exit')
+            self.delTraceHook('threadexit',hookexit)
+
+        self.addTraceHook('threadexit',hookexit)
+        evt.wait(timeout=timeout)
+        return scope.get('exit')
 
     def getStructNames(self, namespace=None):
         '''
@@ -1122,149 +1080,6 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
                 newt = trace.buildNewTrace()
         '''
         return self.__class__()
-
-class TraceGroup(Notifier, v_util.TraceManager):
-    """
-    Encapsulate several traces, run them, and continue to
-    handle their event notifications.
-    """
-    def __init__(self):
-        Notifier.__init__(self)
-        v_util.TraceManager.__init__(self)
-        self.traces = {}
-        self.go = True # A little ghetto switch for those who read the source
-
-        # We are a notify all notifier by default
-        self.registerNotifier(NOTIFY_ALL, self)
-
-        self.setMode("NonBlocking", True)
-
-    def setMeta(self, name, value):
-        """
-        A trace group's setMeta function will set "persistant" metadata
-        which will be added again to any trace on attach.  Additionally,
-        setting metadata on a tracegroup will cause all current traces
-        to get the update as well....
-        """
-        v_util.TraceManager.setMeta(self, name, value)
-        for trace in self.traces.values():
-            trace.setMeta(name, value)
-
-    def setMode(self, name, value):
-        v_util.TraceManager.setMode(self, name, value)
-        for trace in self.getTraces():
-            trace.setMode(name, value)
-
-    def detachAll(self):
-        """
-        Detach from ALL the currently targetd processes
-        """
-        for trace in self.traces.values():
-            try:
-                if trace.isRunning():
-                    trace.sendBreak()
-                trace.detach()
-            except:
-                pass
-
-    def run(self):
-        """
-        Our run method  is a little different than a traditional
-        trace. It will *never* block.
-        """
-        if len(self.traces.keys()) == 0:
-            raise Exception("ERROR - can't run() with no traces!")
-
-        for trace in self.traces.values():
-
-            if trace.exited:
-                self.traces.pop(trace.pid)
-                trace.detach()
-                continue
-
-            if not trace.isRunning():
-                trace.run()
-
-    def execTrace(self, cmdline):
-        trace = getTrace()
-        self._initTrace(trace)
-        trace.execute(cmdline)
-        self.traces[trace.getPid()] = trace
-        return trace
-
-    def addTrace(self, proc):
-        """
-        Add a new tracer to this group the "proc" argument
-        may be either an long() for a pid (which we will attach
-        to) or an already attached (and broken) tracer object.
-        """
-
-        if (type(proc) == types.IntType or
-            type(proc) == types.LongType):
-            trace = getTrace()
-            self._initTrace(trace)
-            self.traces[proc] = trace
-            try:
-                trace.attach(proc)
-            except:
-                self.delTrace(proc)
-                raise
-
-        else: # Hopefully a tracer object... if not.. you're dumb.
-            trace = proc
-            self._initTrace(trace)
-            self.traces[trace.getPid()] = trace
-
-        return trace
-
-    def getTrace(self):
-        '''
-        Similar to vtrace.getTrace(), but also init's
-        the trace for being managed by a TraceGroup.
-
-        Example:
-            tg = TraceGroup()
-            t = tg.getTrace()
-            t....
-        '''
-        t = getTrace()
-        self.addTrace(t)
-        return t
-
-    def _initTrace(self, trace):
-        """
-         - INTERNAL -
-        Setup a tracer object to be ready for being in this
-        trace group (setup modes and notifiers).  Only addTrace()
-        and execTrace() probably need to be aware of this.
-        """
-        self.manageTrace(trace)
-
-    def delTrace(self, pid):
-        """
-        Remove a trace from the current TraceGroup
-        """
-        trace = self.traces.pop(pid, None)
-        self.unManageTrace(trace)
-
-    def getTraces(self):
-        """
-        Return a list of the current traces
-        """
-        return self.traces.values()
-
-    def getTraceByPid(self, pid):
-        """
-        Return the the trace for process PID if we're
-        already attached.  Return None if not.
-        """
-        return self.traces.get(pid, None)
-
-    def notify(self, event, trace):
-        # Remove this trace, and free it
-        # on the server if present
-        if event == NOTIFY_EXIT:
-            self.delTrace(trace.getPid())
 
 class VtraceExpressionLocals(e_expr.MemoryExpressionLocals):
     """
@@ -1365,7 +1180,7 @@ def reqTargOpt(opts, targ, opt, valstr='<value>'):
         raise Exception('Target "%s" requires option: %s=%s' % (targ, opt, valstr))
     return val
 
-def getTrace(target=None, **kwargs):
+def getTrace(target=None):
     """
     Return a tracer object appropriate for this platform.
     This is the function you will use to get a tracer object
@@ -1378,164 +1193,81 @@ def getTrace(target=None, **kwargs):
           is complete.  This releases the tracer thread and allows
           garbage collection to function correctly.
 
-    Some specialized tracers may be constructed by specifying the "target"
-    name from one of the following list.  Additionally, each "specialized"
-    tracer may require additional kwargs (which are listed).
+    wire://<host>:<port>/
 
+    gdb://<host>:<port>/?plat=<plat>&arch=<arch>
 
-    Examples:
-        # A tracer for *this* os
-        t = vtrace.getTrace()
-
-        # A tracer for the gdbstub debugging a vmware 32bit hypervisor
-        t = vtrace.getTrace(target='vmware32', host='localhost', port=8832)
-
-    Targets:
-
-    Alpha Targets:
-
-    vmware32    -
-        host=<host>     ( probably 'localhost' )
-        port=<port>     ( probably 8832 )
+    vmware://<host>:<port>/?plat=<plat>&arch=<arch>
+        ( most often vmware://localhost:8832/ )
 
     """
-    if target == 'gdbserver':
+    wire = None
+    arch = envi.getCurrentArch()
+    plat = envi.getCurrentPlat()
 
-        host = reqTargOpt(kwargs, 'gdbserver', 'host', '<host>')
-        port = reqTargOpt(kwargs, 'gdbserver', 'port', '<port>')
-        arch = reqTargOpt(kwargs, 'gdbserver', 'arch', '<i386|amd64|arm>')
-        plat = reqTargOpt(kwargs, 'gdbserver', 'plat', '<windows|linux>')
+    if target:
+    #if target == 'gdbserver':
+        #host = reqTargOpt(kwargs, 'gdbserver', 'host', '<host>')
+        #port = reqTargOpt(kwargs, 'gdbserver', 'port', '<port>')
+        #arch = reqTargOpt(kwargs, 'gdbserver', 'arch', '<i386|amd64|arm>')
+        #plat = reqTargOpt(kwargs, 'gdbserver', 'plat', '<windows|linux>')
+        #if arch not in ('i386', 'amd64', 'arm'):
+            #raise Exception('Invalid arch specified for "gdbserver" target: %s' % arch)
+        #if plat not in ('windows', 'linux'):
+            #raise Exception('Invalid plat specified for "gdbserver" target: %s' % plat)
 
-        if arch not in ('i386', 'amd64', 'arm'):
-            raise Exception('Invalid arch specified for "gdbserver" target: %s' % arch)
-
-        if plat not in ('windows', 'linux'):
-            raise Exception('Invalid plat specified for "gdbserver" target: %s' % plat)
-
-    if target == 'vmware32':
-
-        import vtrace.platforms.vmware as vt_vmware
-
-        host = reqTargOpt(kwargs, 'vmware32', 'host', '<host>')
-        port = int( reqTargOpt(kwargs, 'vmware32', 'port', '<port>') )
-
-        plat = 'windows'
-
+    #if target == 'vmware32':
+        #import vtrace.platforms.vmware as vt_vmware
+        #host = reqTargOpt(kwargs, 'vmware32', 'host', '<host>')
+        #port = int( reqTargOpt(kwargs, 'vmware32', 'port', '<port>') )
+        #plat = 'windows'
         #plat = reqTargOpt(kwargs, 'vmware32', 'plat', '<windows|linux>')
         #if plat not in ('windows', 'linux'):
             #raise Exception('Invalid plat specified for "vmware32" target: %s' % plat)
 
-        return vt_vmware.VMWare32WindowsTrace( host=host, port=port )
+        #return vt_vmware.VMWare32WindowsTrace( host=host, port=port )
 
-    if remote: #We have a remote server!
-        return getRemoteTrace()
+    #if remote: #We have a remote server!
+        #return getRemoteTrace()
 
     # From here down, we're trying to build a trace for *this* platform!
 
-    os_name = platform.system().lower() # Like "linux", "darwin","windows"
-    arch = envi.getCurrentArch()
 
-    if os_name == "linux":
-        import vtrace.platforms.linux as v_linux
+    if plat == "windows":
+        if arch == "i386":
+            return v_win32.Windowsi386Trace()
+
+        if arch == "amd64":
+            return v_win32.WindowsAmd64Trace()
+
+    if plat == "linux":
+
+        if arch == "i386":
+            return v_linux.Linuxi386Trace()
+
         if arch == "amd64":
             return v_linux.LinuxAmd64Trace()
 
-        elif arch == "i386":
-            return v_linux.Linuxi386Trace()
-
-        # Keep separate just in case
-        elif arch == "armv7l":
+        if arch in ("armv6l","armv7l"):
             return v_linux.LinuxArmTrace()
 
-        elif arch == "armv6l":
-            return v_linux.LinuxArmTrace()
-
-        else:
-            raise Exception("Sorry, no linux support for %s" % arch)
-
-    elif os_name == "freebsd":
-
-        import vtrace.platforms.freebsd as v_freebsd
+    if plat == 'freebsd':
 
         if arch == "i386":
             return v_freebsd.FreeBSDi386Trace()
 
-        elif arch == "amd64":
+        if arch == "amd64":
             return v_freebsd.FreeBSDAmd64Trace()
 
-        else:
-            raise Exception("Sorry, no FreeBSD support for %s" % arch)
+    if plat == 'darwin':
 
-    elif os_name == "sunos5":
-        raise Exception("Solaris needs porting!")
-        #import vtrace.platforms.posix as v_posix
-        #import vtrace.platforms.solaris as v_solaris
-        #ilist.append(v_posix.PosixMixin)
-        #if arch == "i386":
-            #import vtrace.archs.intel as v_intel
-            #ilist.append(v_intel.i386Mixin)
-            #ilist.append(v_solaris.SolarisMixin)
-            #ilist.append(v_solaris.Solarisi386Mixin)
-
-    elif os_name == "darwin":
-
-        #if 9 not in os.getgroups():
-            #print 'You MUST be in the procmod group....'
-            #print 'Use: sudo dscl . append /Groups/procmod GroupMembership invisigoth'
-            #print '(put your username in there unless you want to put me in too... ;)'
-            #raise Exception('procmod group membership required')
-        if os.getuid() != 0:
-            print 'For NOW you *must* be root.  There are some crazy MACH perms...'
-            raise Exception('You must be root for now (on OSX)....')
-
-        print 'Also... the darwin port is not even REMOTELY working yet.  Solid progress though...'
-
-        #'sudo dscl . append /Groups/procmod GroupMembership invisigoth'
-        #'sudo dscl . read /Groups/procmod GroupMembership'
-        import vtrace.platforms.darwin as v_darwin
         if arch == 'i386':
             return v_darwin.Darwini386Trace()
-        elif arch == 'amd64':
+
+        if arch == 'amd64':
             return v_darwin.DarwinAmd64Trace()
-        else:
-            raise Exception('Darwin not supported on %s (only i386...)' % arch)
 
-    elif os_name in ['microsoft', 'windows']:
-
-        import vtrace.platforms.win32 as v_win32
-
-        if arch == "i386":
-            return v_win32.Windowsi386Trace()
-
-        elif arch == "amd64":
-            return v_win32.WindowsAmd64Trace()
-
-        else:
-            raise Exception("Windows with arch %s is not supported!" % arch)
-
-    else:
-
-        raise Exception("ERROR - OS %s not supported yet" % os_name)
-
-def interact(pid=0, server=None, trace=None):
-
-    """
-    Just a cute and dirty way to get a tracer attached to a pid
-    and get a python interpreter instance out of it.
-    """
-
-    global remote
-    remote = server
-
-    if trace == None:
-        trace = getTrace()
-        if pid:
-            trace.attach(pid)
-
-    mylocals = {}
-    mylocals["trace"] = trace
-
-    code.interact(local=mylocals)
+    raise Exception('FIXME need tracer for %s - %s' % (plat,arch))
 
 def getEmu(trace, arch=envi.ARCH_DEFAULT):
     '''

@@ -1070,6 +1070,16 @@ def getCurrentArch():
 
     return ret
 
+def getCurrentPlat():
+    '''
+    Returns an envi normalized name for the current platform.
+    '''
+    plat = platform.system().lower() # Like "linux", "darwin","windows"
+    if plat == 'microsoft':
+        plat = 'windows'
+
+    return plat
+
 def getArchModule(name=None):
     """
     return an Envi architecture module instance for the following
