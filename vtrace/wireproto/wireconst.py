@@ -12,11 +12,6 @@ WT_MSG_ERRO     = msgtype('erro')
 WT_MSG_FILE     = msgtype('file')
 WT_MSG_LDIR     = msgtype('ldir')
 
-#WT_ARCH_I386    = msgtype('i386')
-#WT_ARCH_AMD64   = msgtype('amd6')
-#WT_ARCH_ARM9    = msgtype('arm9')
-#WT_ARCH_MIPS    = msgtype('mips')
-
 def typestr(x):
     return struct.pack('<I',x)
 
