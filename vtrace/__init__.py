@@ -117,30 +117,19 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
     worry about the methods that come from the mixins...  Everything that is
     *meant* to be used from the API is contained and documented here.
     """
-    def __init__(self, archname=None):
-
-        self.released = False
+    def __init__(self):#, archname=None):
 
         self.pid = None
         self.tid = None
         self.sig = None
 
-        self.threads = {}
-
-        self.signore = set()
-        self.delaybreaks = []
-
         # The universal place for all modes
         # that might be platform dependant...
-        self.modes = {}
-        self.modedocs = {}
-        self.notifiers = {}
+        #self.notifiers = {}
 
         # For all transient data (if notifiers want
         # to track stuff per-trace
-        self.metadata = {}
 
-        self._mode_init("runforever",doc="run the trace until it exits")
         #self.initMode("RunForever", False, "Run until RunForever = False")
         #self.initMode("NonBlocking", False, "A call to wait() fires a thread to wait *for* you")
         #self.initMode("ThreadProxy", True, "Proxy necessary requests through a single thread (can deadlock...)")
@@ -152,23 +141,27 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         self.sus_threads = {}   # A dictionary of suspended threads
 
         # Set if we're a server and this trace is proxied
-        self.proxy = None
+        #self.proxy = None
 
         # Set us up with an envi arch module
         # FIXME eventually we should just inherit one...
-        if archname == None:
-            archname = envi.getCurrentArch()
+        #if archname == None:
+            #archname = envi.getCurrentArch()
 
         #arch = envi.getArchByName( archname )
         #self.setMeta('Architecture', archname)
         #self.arch = envi.getArchModule(name=archname)
 
-        e_resolv.SymbolResolver.__init__(self, width=self.arch.getPointerSize())
+        arch = envi.getArchByName( self.archname )
+
+        #self.arch = envi.getArchModule( name=self.archname )
+        #self.imem_psize = self.arch.getPointerSize()
+
+        e_resolv.SymbolResolver.__init__(self, width=self.archsize)
         e_mem.IMemory.__init__(self, arch=arch)
         e_reg.RegisterContext.__init__(self)
 
         # Add event numbers to here for auto-continue
-        self.autocont = set(['libinit','libfini','threadinit','threadexit','dbgprint'])
         #self.auto_continue = [NOTIFY_LOAD_LIBRARY, NOTIFY_CREATE_THREAD, NOTIFY_UNLOAD_LIBRARY, NOTIFY_EXIT_THREAD, NOTIFY_DEBUG_PRINT]
 
     def execute(self, cmdline):
@@ -176,8 +169,9 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         Execute a new process from the given command.
         """
         self.pid = self._plat_exec(cmdline)
+        self.attached = True
         self.metadata['cmdline'] = cmdline
-        self._hook_fire('procinit',{'pid':pid,'cmdline':cmdline})
+        self._hook_fire('procinit',{'pid':self.pid,'cmdline':cmdline})
 
     def parseOpcodes(self, num, va=None):
         '''
@@ -248,10 +242,7 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         Attach to a new process ID.
         """
         self._plat_attach(pid)
-        self.pid = pid
         self.attached = True
-
-        self._hook_fire('procinit',{'pid':pid})
 
         # we may have an autocont on procinit...
         if self.wantrun():
@@ -271,7 +262,7 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         if not self.attached:
             return False
 
-        if self.exited:
+        if self.exitcode != None:
             return False
 
         if self.getMode("runforever"):
@@ -301,7 +292,9 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         self.runagain = True
         while self.wantrun():
             self._sync_torun()
+            self.running = True
             self._plat_run()
+            self.running = False
 
     def _sync_torun(self):
         self._check_delaybreaks()
@@ -367,12 +360,13 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         self._plat_detach() #platformDetach()
         self.attached = False
 
-    #def release(self):
+    def release(self):
         #'''
         #Release resources for this tracer.  This API should be called
         #once you are done with the trace.
         #'''
-        #if not self.released:
+        if not self.released:
+            self.released = True
             #self.released = True
             #if self.attached:
                 #self.detach()
@@ -636,12 +630,15 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         """
         return self.modes.get(name,False)
 
-    def setMode(self, name, value):
+    def setMode(self, name, value=True):
         """
         Enable/disable various modes within the tracer.
 
-        well defined modes:
-            runforever
+        all:
+            runforever      - on run() continue running to exit
+
+        linux:
+            syscall         - break on syscall entry/exits
 
         """
         if not self.modes.has_key(name):
@@ -967,8 +964,7 @@ class Trace(e_mem.IMemory, e_reg.RegisterContext, e_resolv.SymbolResolver, objec
         """
         Resume a suspended thread.
         """
-        #self.requireNotRunning()
-        if not self.sus_threads.get(tid)
+        if not self.sus_threads.get(tid):
             raise Exception('thread is not suspended: %s' % tid)
         self._plat_resthread(tid)
         self.sus_threads.pop(tid)
@@ -1205,7 +1201,7 @@ def getTrace(target=None):
     arch = envi.getCurrentArch()
     plat = envi.getCurrentPlat()
 
-    if target:
+    #if target:
     #if target == 'gdbserver':
         #host = reqTargOpt(kwargs, 'gdbserver', 'host', '<host>')
         #port = reqTargOpt(kwargs, 'gdbserver', 'port', '<port>')
@@ -1231,7 +1227,7 @@ def getTrace(target=None):
         #return getRemoteTrace()
 
     # From here down, we're trying to build a trace for *this* platform!
-
+    import vtrace.platforms.linux as vt_plat_linux
 
     if plat == "windows":
         if arch == "i386":
@@ -1243,13 +1239,13 @@ def getTrace(target=None):
     if plat == "linux":
 
         if arch == "i386":
-            return v_linux.Linuxi386Trace()
+            return vt_plat_linux.Linuxi386Trace()
 
         if arch == "amd64":
-            return v_linux.LinuxAmd64Trace()
+            return vt_plat_linux.LinuxAmd64Trace()
 
         if arch in ("armv6l","armv7l"):
-            return v_linux.LinuxArmTrace()
+            return vt_plat_linux.LinuxArmTrace()
 
     if plat == 'freebsd':
 

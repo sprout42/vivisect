@@ -7,6 +7,54 @@ import types
 import struct
 import platform
 
+def archinfo(**kwargs):
+    a = {
+        'ptrsize':None,
+        'aliases':(),
+        'defcalls':{},
+        'nop':None,
+        'brk':None,
+    }
+    a.update(kwargs)
+    return a
+
+archinfo_byname = {
+    'amd64':archinfo(
+        ptrsize=8,
+        aliases=('x86_64',),
+        defcalls={
+            'windows':'amd64call',
+        },
+        nop='90',
+        brk='cc',
+    ),
+    'i386':archinfo(
+        ptrsize=4,
+        aliases=('i486','i586','i686','x86'),
+        defcals={
+            'linux':'cdecl',
+            'windows':'stdcall',
+        },
+        nop='90',
+        brk='cc',
+    ),
+    'arm':archinfo(
+        ptrsize=4,
+        aliases=('armv6l','armv7l'),
+    ),
+}
+
+#if name in ["i386","i486","i586","i686","x86"]:
+
+def getArchInfo(arch,prop=None):
+    '''
+    Retrieve details about an arch by name.
+    '''
+    info = archinfo_byname.get(arch)
+    if prop:
+        return info.get(prop)
+    return info
+
 # TODO: move into const.py
 # Parsed Opcode Formats
 ARCH_DEFAULT     = 0 << 16   # arch 0 is whatever the mem object has as default

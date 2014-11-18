@@ -15,8 +15,8 @@ import vtrace
 import vtrace.platforms.base as v_base
 
 class TraceSnapshot(
-            vtrace.Trace,
-            v_base.TracerBase,
+            #vtrace.Trace,
+            v_base.TraceBase,
         ):
     """
     A tracer snapshot is similar to a traditional "core file" except that

@@ -40,10 +40,10 @@ class i386Trace(vt_arch_base.TraceArch):
     def _arch_init(self):
         self._arch_dbgregs = [0, 0, 0, 0]
 
-    def _arch_bpinit(self, addr, info): pass
+    def _arch_bpinit(self, addr, info):
         self.setmem(addr,info['saved'])
         
-    def _arch_bpfini(self, addr, info): pass
+    def _arch_bpfini(self, addr, info):
         info['saved'] = self.getmem(addr,1)
         self.setmem(addr,'\xcc')
 

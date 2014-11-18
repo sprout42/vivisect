@@ -54,8 +54,8 @@ class TracePlatform:
     def _plat_fileread(self, fd, offset, size): pass
     def _plat_filewrite(self, fd, offset, bytez): pass
 
-    def _plat_listdir(self, path):
-    def _plat_readlink(self, path):
+    def _plat_listdir(self, path): pass
+    def _plat_readlink(self, path): pass
 
     #@implementme def _plat_readfile(self, path): pass    # readfile(path) -> bytes
     #@implementme def _plat_openfile(self, path): pass    # openfile(path) -> fd
@@ -63,13 +63,27 @@ class TracePlatform:
     def _plat_stoptobreak(self, addr):
         return addr
 
-class TracerBase(vtrace.Trace):
+class TraceBase(vtrace.Trace):
 
     def __init__(self):
 
-        self.pid = None # Attached pid (also used to know if attached)
+        vtrace.Trace.__init__(self)
+        #self.pid = None # Attached pid (also used to know if attached)
+        #self.tid = None
+        self.running = False
         self.exitcode = None
+        self.attached = False
+        self.released = False
         self.runagain = False
+
+        self.modes = {}
+        self.modeinfo = {}
+        self.autocont = set(['libinit','libfini','threadinit','threadexit','dbgprint'])
+
+        self.breaks = {}
+        self.threads = {}
+        self.signore = set()
+        self.delaybreaks = []
 
         # A cache for memory maps, fd lists, regs, etc...
         self.cache = {}
@@ -82,6 +96,7 @@ class TracerBase(vtrace.Trace):
 
         self.hooks = {}
         self.hookdefs = {}
+        self.metadata = {}
 
         procinfo = {'pid':'process id'}
         self._hook_init('procinit',doc='fires on process attach',**procinfo)
@@ -139,10 +154,12 @@ class TracerBase(vtrace.Trace):
 
         # we must be a voltron of each of these layers...
         self._fmt_init()
-        #self._wire_init()
+        self._wire_init()
         self._arch_init()
         self._plat_init()
         #self._trace_init()
+
+        self._mode_init("runforever",doc="run the trace until it exits")
 
         # Set up some globally expected metadata
         #self.setMeta('PendingSignal', None)
@@ -297,6 +314,20 @@ class TracerBase(vtrace.Trace):
         #for bp in self.breakpoints.values():
             #if bp.isEnabled():
                 #bp.activate(self)
+
+    def _hook_fire(self, name, info):
+        print 'FIRE',name,info
+        self.runagain = ( name in self.autocont )
+        for hook in self.hooks.get(name,[]):
+            try:
+                hook(name,info)
+            except Exception, e:
+                print('hook error: %s %s' % (hook,e))
+
+
+    def _hook_init(self, name, **hookdef):
+        self.hooks[name] = []
+        self.hookdefs[name] = hookdef
 
     def _sync_regs(self):
         """
@@ -482,7 +513,7 @@ class TracerBase(vtrace.Trace):
             info['active'] = True
 
     def _sync_cache(self):
-        self._sync_mem()
+        #self._sync_mem()
         self._sync_regs()
         self.cache.clear()
 

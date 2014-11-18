@@ -23,16 +23,16 @@ class TraceManager:
         by this TraceManager.
         """
         self.trace = trace
-        if vtrace.remote:
-            trace.registerNotifier(vtrace.NOTIFY_ALL, v_rmi.getCallbackProxy(trace, self.dnotif))
-        else:
-            trace.registerNotifier(vtrace.NOTIFY_ALL, self.dnotif)
+        #if vtrace.remote:
+            #trace.registerNotifier(vtrace.NOTIFY_ALL, v_rmi.getCallbackProxy(trace, self.dnotif))
+        #else:
+            #trace.registerNotifier(vtrace.NOTIFY_ALL, self.dnotif)
 
-        for name,val in self.modes.items():
-            trace.setMode(name, val)
+        #for name,val in self.modes.items():
+            #trace.setMode(name, val)
 
-        for name,val in self.metadata.items():
-            trace.setMeta(name, val)
+        #for name,val in self.metadata.items():
+            #trace.setMeta(name, val)
 
     def unManageTrace(self, trace):
         """

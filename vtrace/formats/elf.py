@@ -3,7 +3,7 @@ import Elf
 import vtrace.formats.base as v_fmt_base
 import envi.symstore.resolver as e_resolv
 
-class ElfFormat(v_fmt_base.TraceFormat):
+class ElfTrace(v_fmt_base.TraceFormat):
 
     def _fmt_init(self):
         self.setMeta('format','elf')

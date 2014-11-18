@@ -4,8 +4,22 @@ Amd64 Support Module
 # Copyright (C) 2007 Invisigoth - See LICENSE file for details
 import struct
 
+import envi
 import envi.archs.amd64 as e_amd64
+import vtrace.archs.base as vt_base
 import vtrace.archs.i386 as vt_i386
+
+class Amd64Trace(vt_i386.i386Trace,e_amd64.Amd64RegisterContext,e_amd64.Amd64Module):
+    archsize = 8
+    archname = 'amd64'
+
+    def _arch_init(self):
+
+        e_amd64.Amd64Module.__init__(self)
+        e_amd64.Amd64RegisterContext.__init__(self)
+
+        self.setMemArchitecture(envi.ARCH_AMD64)
+        self.setMeta('architecture','amd64')
 
 class Amd64Mixin(
         e_amd64.Amd64Module,

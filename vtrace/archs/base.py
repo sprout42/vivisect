@@ -10,4 +10,5 @@ class TraceArch:
     def _arch_watchinit(self, addr, size=4, perms='rw'):
         raise Exception('%s does not implement watchpoints' % self.archname)
 
-    def _arch_watchfini(self, 
+    def _arch_watchfini(self, addr):
+        raise Exception('%s does not implement watchpoints' % self.archname)

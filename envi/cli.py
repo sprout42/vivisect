@@ -248,8 +248,8 @@ class EnviCli(Cmd):
         except SystemExit:
             raise
         except Exception, msg:
-            if self.config.cli.verbose:
-                self.vprint(traceback.format_exc())
+            #if self.config.cli.verbose:
+            self.vprint(traceback.format_exc())
             self.vprint("\nERROR: (%s) %s" % (msg.__class__.__name__,msg))
 
         if self.shutdown.isSet():

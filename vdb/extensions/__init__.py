@@ -16,8 +16,8 @@ def loadExtensions(vdb, trace):
     '''
     Actually load all known extensions here.
     '''
-    plat = trace.getMeta('Platform').lower()
-    arch = trace.getMeta('Architecture').lower()
+    plat = trace.getMeta('platform').lower()
+    arch = trace.getMeta('architecture').lower()
 
     if plat in __all__:
         mod = __import__('vdb.extensions.%s' % plat, 0, 0, 1)

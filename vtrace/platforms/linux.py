@@ -3,10 +3,12 @@ Linux Platform Module
 """
 # Copyright (C) 2007 Invisigoth - See LICENSE file for details
 import os
+import sys
 import time
+import shlex
 import struct
-import traceback
 import platform
+import traceback
 
 import envi.cli as e_cli
 import envi.memory as e_mem
@@ -18,8 +20,9 @@ import vtrace.archs.arm as v_arm
 import vtrace.archs.i386 as v_i386
 import vtrace.archs.amd64 as v_amd64
 
+import vtrace.formats.elf as v_elf
 import vtrace.platforms.base as v_base
-import vtrace.platforms.posix as v_posix
+#import vtrace.platforms.posix as v_posix
 
 from ctypes import *
 import ctypes.util as cutil
@@ -32,6 +35,18 @@ MAP_PRIVATE = 0x02
 
 SIGTRAP = 5
 SIGSTOP = 19
+
+# mostly normal ptrace defs...
+PT_TRACE_ME     = 0   # child declares it's being traced */
+PT_READ_I       = 1   # read word in child's I space */
+PT_READ_D       = 2   # read word in child's D space */
+PT_READ_U       = 3   # read word in child's user structure */
+PT_WRITE_I      = 4   # write word in child's I space */
+PT_WRITE_D      = 5   # write word in child's D space */
+PT_WRITE_U      = 6   # write word in child's user structure */
+PT_CONTINUE     = 7   # continue the child */
+PT_KILL         = 8   # kill the child process */
+PT_STEP         = 9   # single step the child */
 
 # Linux specific ptrace extensions
 PT_GETREGS = 12
@@ -70,6 +85,8 @@ PT_EVENT_EXIT       = 6
 SIG_LINUX_SYSCALL = SIGTRAP | 0x80
 SIG_LINUX_CLONE = SIGTRAP | (PT_EVENT_CLONE << 8)
 SIG_LINUX_EXIT = SIGTRAP | (PT_EVENT_EXIT << 8)
+SIG_LINUX_FORK = SIGTRAP | (PT_EVENT_FORK << 8)
+SIG_LINUX_VFORK = SIGTRAP | (PT_EVENT_VFORK << 8)
 
 #following from Pandaboard ES (OMAP4460) Armv7a (cortex-a9)
 class user_regs_arm(Structure):
@@ -229,24 +246,72 @@ class PyFilesWire:
     def _wire_listdir(self, path):
         return os.listdir(path)
 
-    def _wire_readfile(self, path):
+    def _wire_filecat(self, path):
         return file(path,'rb').read()
 
-    def _wire_readlink(self, path):
+    def _wire_linkread(self, path):
         return os.readlink(path)
 
-    def _wire_openfile(self, path):
+    def _wire_fileopen(self, path):
         return file(path,'r+b')
 
-    def _wire_readfile(self, fd, offset, size):
+    def _wire_fileread(self, fd, offset, size):
         fd.seek(offset)
         return fd.read(size)
 
-    def _wire_writefile(self, fd, offset, bytez):
+    def _wire_filewrite(self, fd, offset, bytez):
         fd.seek(offset)
         fd.write(bytez)
 
-class LinuxLocalWire(PyFilesWire):
+#class LinuxLocalWire(PyFilesWire):
+
+def WIFSIG(status):
+    return (status >> 8)
+
+#def WIFSIGNALED(status):
+#def WIFSTOPPED(status):
+
+#def kernelversion():
+    #return tuple([ int(v) for v in platform.release().split('-')[0].split('.') ])
+
+class LinuxTrace:
+
+    #(v_posix.PtraceMixin, v_posix.PosixMixin):
+
+    #def __init__(self):
+        # Wrap reads from proc in our worker thread
+        #v_posix.PtraceMixin.__init__(self)
+        #v_posix.PosixMixin.__init__(self)
+        #self._stopped_cache = {}
+        #self._stopped_hack = False
+
+        #self._initLibc()
+
+    #def _get_wire(self):
+        #wire = getattr(threading.currentThread(),'_trace_wire')
+
+    #def _wire_wrap(self
+
+    def _plat_init(self):
+
+        self.setMeta('platform','linux')
+
+        self.linuxver = self._wire_osver()
+        self.setMeta('linux',self.linuxver)
+
+        print "LINUX",self.linuxver
+
+        sysinfo = {
+            'syscall':'syscall integer',
+            #'sysname':'syscall name (*plat)',
+            #'sysargs':'syscall arguments list (*plat)',
+            'sysret':'syscall return value (after syscall only, if platform supported)',
+        }
+        self._hook_init("syscall",doc="fires before/after syscalls (+syscall mode)",**sysinfo)
+        self._mode_init("syscall",doc="break on syscalls")
+
+    def _wire_osver(self):
+        return tuple([ int(v) for v in platform.release().split('-')[0].split('.') ])
 
     def _wire_init(self):
         PyFilesWire._wire_init(self)
@@ -264,129 +329,131 @@ class LinuxLocalWire(PyFilesWire):
         self.libc.read.argtypes = [c_uint, c_void_p, c_long]
         self.libc.write.restype = c_long
         self.libc.write.argtypes = [c_uint, c_void_p, c_long]
+        self.libc.ptrace.restype = c_size_t
+        self.libc.ptrace.argtypes = [c_int, c_uint32, c_size_t, c_size_t]
+
+    def _wire_ptrace(self, code, pid, addr, data):
+        """
+        The contents of this call are basically cleanly
+        passed to the libc implementation of ptrace.
+        """
+        return self.libc.ptrace(code, pid, c_size_t(addr), c_size_t(data))
 
     def _wire_memread(self, va, size):
         """
         A *much* faster way of reading memory that the 4 bytes
         per syscall allowed by ptrace
         """
-        self._wire_readfile(self.memfd, va, size)
-        self.libc.lseek64(self.memfd, offset, 0)
-
-        # Use ctypes cause python implementation is teh ghey
-        #buf = create_string_buffer(size)
-
-        #x = self.libc.read(self.memfd, addressof(buf), size)
-        #if x != size:
-            #libc.perror('libc.read %d (size: %d)' % (x,size))
-            #raise Exception("reading from invalid memory %s (%d returned)" % (hex(address), x))
-        # We have to slice cause ctypes "helps" us by adding a null byte...
-        #return buf.raw
+        return self._wire_fileread(self.memfd, va, size)
 
     def _wire_wait(self, pid):
         pid,status = os.waitpid(pid,0x40000002)
-        if not os.WIFSTOPPED(status):
-            raise Exception('requird WIFESTOPPED')
-
-        return pid,(status >> 8)
+        #if not os.WIFSTOPPED(status):
+            #raise Exception('requird WIFESTOPPED')
+        #return pid,(status >> 8)
+        print "WAIT",pid,status
+        return pid,status
 
     def _wire_exec(self, argv):
         pid = os.fork()
         if pid == 0:
-            v_posix.ptrace(v_posix.PT_TRACE_ME, 0, 0, 0)
-            # Make sure our parent gets some cycles
-            time.sleep(0.1)
-            os.execv(cmdlist[0], cmdlist)
-            sys.exit(-1)
+            try:
+                self._wire_ptrace(PT_TRACE_ME, 0, 0, 0)
+                # Make sure our parent gets some cycles
+                time.sleep(0.1)
+                os.execv(argv[0], argv)
+            except Exception, e:
+                print('fork bail: %s' % e)
+                sys.exit(-1)
 
+        print "EXEC ATTACH",pid
         self._wire_ptrace(PT_ATTACH, pid, 0, 0)
-        tid,sig = self._wire_wait(pid)
 
-        #p,status = os.waitpid(pid,0x40000002)
-        #if not os.WIFSTOPPED(status):
-            #raise Exception('requird WIFESTOPPED')
+        tid,status = self._wire_wait(pid)
+        if not os.WIFSTOPPED(status):
+            raise Exception('requird WIFESTOPPED')
 
-        #sig = status >> 8
+        sig = WIFSIG(status)
         if sig != SIGSTOP:
             raise Exception('required SIGSTOP')
 
+        self._wire_ptrace_opts(pid)
+
+        # let it run to the "break"
+        self._wire_ptrace(PT_CONTINUE, pid, 0, 0)
+        tid,status = self._wire_wait(pid)
+        if not os.WIFSTOPPED(status):
+            raise Exception('requird WIFESTOPPED')
+
+        sig = WIFSIG(status)
+        if sig != SIGSTOP:
+            raise Exception('required SIGSTOP')
+
+        if sig != SIGTRAP:
+            raise Exception('required SIGTRAP')
+
+        self.tid = tid
+        self.threads[tid] = 0x01 # FIXME stack base...
+
         return pid
 
-    def _wire_openfile(self, path):
+    def _wire_fileopen(self, path):
         return self.libc.open(path, O_RDWR | O_LARGEFILE, 0755)
 
-    def _wire_readfile(self, fileno, offset, size):
+    def _wire_fileread(self, fileno, offset, size):
         self.libc.lseek64(fileno, offset, 0)
         buf = create_string_buffer(size)
         x = self.libc.read(fileno, addressof(buf), size)
         return buf.raw
 
-    def _wire_writefile(self, fileno, offset, bytez):
+    def _wire_filewrite(self, fileno, offset, bytez):
         self.libc.lseek64(fileno, offset, 0)
         x = self.libc.write(fileno, bytez, len(bytez))
 
     def _wire_attach(self, pid):
 
-        self._wire_ptrace(PT_ATTACH, pid, 0, 0)
+        if self._wire_ptrace(PT_ATTACH, pid, 0, 0) != 0:
+            self.libc.perror("PT_ATTACH pid %d failed" % pid)
+            raise Exception("attach failed: %s" % pid)
 
-        pid,sig = self._wire_wait(pid)
+        tid,status = self._wire_wait(pid)
+        if not os.WIFSTOPPED(status):
+            raise Exception('requird WIFESTOPPED')
+
+        sig = WIFSIG(status)
         if sig != SIGSTOP:
             raise Exception('required SIGSTOP')
 
-        opts = PT_O_TRACESYSGOOD
-        if platform.release()[:3] in ('2.6','3.0','3.1','3.2'):
-            opts |= PT_O_TRACECLONE | PT_O_TRACEEXIT
+        self._wire_ptrace_opts(pid)
 
-        self._wire_ptrace(PT_SETOPTIONS, pid, 0, opts)
+        #opts = PT_O_TRACESYSGOOD
+        #if platform.release()[:3] in ('2.6','3.0','3.1','3.2'):
+            #opts |= PT_O_TRACECLONE | PT_O_TRACEEXIT
+
+        #self._wire_ptrace(PT_SETOPTIONS, pid, 0, opts)
         #self.memfd = self.libc.open("/proc/%d/mem" % self.pid, O_RDWR | O_LARGEFILE, 0755)
 
     def _wire_stepi(self, tid):
-        self._wire_ptrace(v_posix.PT_STEP, tid, 0, 0)
-        t,sig = self._wire_wait(
+        self._wire_ptrace(PT_STEP, tid, 0, 0)
+
+        tid,status = self._wire_wait(pid)
+        if not os.WIFSTOPPED(status):
+            raise Exception('requird WIFESTOPPED')
+
+        sig = WIFSIG(status)
         if t != tid:
             raise Exception('_wire_stepi: wait got pid: %d (wanted %d)' % (t,tid))
         if sig != SIGTRAP:
             raise Exception('_wire_stepi: wait got sig: %d (wanted SIGTRAP)' % (sig,))
 
-    def _wire_detach(self, pid):
-        self._ptrace_detach(pid)
-
-class LinuxTrace:
-
-    #(v_posix.PtraceMixin, v_posix.PosixMixin):
-
-    #def __init__(self):
-        # Wrap reads from proc in our worker thread
-        #v_posix.PtraceMixin.__init__(self)
-        #v_posix.PosixMixin.__init__(self)
-        #self._stopped_cache = {}
-        #self._stopped_hack = False
-
-        #self._initLibc()
-        #self.fireTracerThread()
-
-    def _get_wire(self):
-        wire = getattr(threading.currentThread(),'_trace_wire')
-
-    #def _wire_wrap(self
-
-    def _plat_init(self):
-
-        sysinfo = {
-            'syscall':'syscall integer',
-            #'sysname':'syscall name (*plat)',
-            #'sysargs':'syscall arguments list (*plat)',
-            'sysret':'syscall return value (after syscall only, if platform supported)',
-        }
-        self._hook_init('syscall',doc='fires before/after syscalls (+syscall mode)',**sysinfo)
-
-        self._mode_init("syscall", "break on syscalls")
+    #def _wire_detach(self, pid):
+        #self._ptrace_detach(pid)
 
     def _plat_stoptobreak(self, addr):
         return addr - 1
 
     def _plat_memread(self, va, size):
-        self._wire_memread(va, size)
+        return self._wire_memread(va, size)
 
     #@v_base.threadwrap
     #def whynot_platformWriteMemory(self, address, data):
@@ -416,28 +483,57 @@ class LinuxTrace:
 
     def _plat_exec(self, cmdline):
         argv = shlex.split(cmdline)
-        return self._wire_exec(argv)
+        pid = self._wire_exec(argv)
+
+        self.tid = pid
+        return pid
 
     def _plat_attach(self, pid):
         self.tid = pid
-        self.threads.append( pid )
+        #self.threads.append( pid )
 
         #self.pthreads = [pid,]
         self._wire_attach(pid)
-        self._fire_event('initproc',{'pid':pid})
+
+        self.pid = pid
+        self.tid = pid
+
+        # continue to the SIGTRAP
+
+        #self._wire_ptrace(PT_CONTINUE, pid, 0, 0)
+        #print 'WAITING DURING ATTACH'
+        #tid,sig = self._wire_wait(pid)
+
+        #if sig != SIGTRAP:
+            #raise Exception('required SIGTRAP')
+
+        print 'BP',hex(self.getreg('rbp'))
+
+        self.memfd = self._wire_fileopen('/proc/%d/mem' % self.pid)
+
+        self._hook_fire('procinit',{'pid':pid})
+
+        print 'MEM',self.getmem(self.getpc(),32).encode('hex')
+
+        self.threads[pid] = self.getreg('rbp')
+        self._hook_fire('threadinit',{'tid':pid})
 
         for dirname in self._wire_listdir('/proc/%s/task' % pid):
             if not dirname.isdigit():
                 continue
 
             tid = int(dirname)
+            if tid == pid:
+                continue
+
             self._wire_attach(tid)
 
             self.tid = tid
-            self.threads.append(tid)
-            self._fire_event('initthread',{'tid':tid})
+            self.threads[tid] = 1
+            self._hook_fire('threadinit',{'tid':tid})
 
-        #self.memfd = self._wire_openfile('/proc/%d/mem' % self.pid)
+        # fake out a "windows style" break after procinit/threadinit
+        self._hook_fire('break',{})
 
         #self.setMeta("ThreadId", pid)
         #self.setMeta("ExeName", self._findExe(pid))
@@ -457,12 +553,13 @@ class LinuxTrace:
                 if not dname.isdigit():
                     continue
 
-                cmdline = self._wire_readfile('/proc/%s/cmdline' % dname)
+                cmdline = self._wire_filecat('/proc/%s/cmdline' % dname)
                 cmdline = cmdline.replace("\x00"," ")
                 if len(cmdline) > 0:
                     pslist.append((int(dname),cmdline))
 
-            except:
+            except Exception, e:
+                print 'FAIL',e
                 pass # Permissions...  quick process... whatev.
 
         return pslist
@@ -505,55 +602,147 @@ class LinuxTrace:
                     #print "WARNING TID is invalid %d %s" % (tid,e)
         #return pid,status
 
+    def _wire_kill(self, tid, sig):
+        os.kill(tid,sig)
+
     def _plat_run(self):
-        cmd = v_posix.PT_CONTINUE
-        if self.getMode("syscall", False):
+        cmd = PT_CONTINUE
+        if self.modes.get("syscall"):
             cmd = PT_SYSCALL
 
         pid = self.pid
         sig = self.sig
 
-
-        self._fire_event("continue",{'sig':sig})
+        self._hook_fire("continue",{'sig':sig})
 
         self.sig = None
-        self._wire_continue(sig)
-        pid,sig = self._wire_wait(-1)
 
-        self.tid = pid
+        if sig == None:
+            sig = 0
 
-        if sig == SIGTRAP:
-            if self._check_breakpoints():
+        #self._wire_run(sig)
+        print "RUNNING",cmd,pid,sig
+        if self._wire_ptrace(cmd, pid, 0, sig) != 0:
+            self.libc.perror('ptrace PT_CONTINUE failed for pid %d' % pid)
+            raise Exception('FIXME BAD NEWS')
+
+        for tid in self.threads.keys():
+            if tid == pid:
+                continue
+
+            if self._wire_ptrace(cmd,tid,0,0) != 0:
+                self.libc.perror('ptrace PT_CONTINUE failed for tid %d' % tid)
+
+        #tid,sig = self._wire_wait(-1)
+        tid,status = self._wire_wait(-1)
+        #if not os.WIFSTOPPED(status):
+            #raise Exception('requird WIFESTOPPED')
+
+        sig = WIFSIG(status)
+
+        # detect this early to remove from threads...
+        #skiptid = None
+        #if os.WIFEXITED(status):
+            #skiptid = skiptid
+
+        # now bail on the rest of them as well...
+        for t in self.threads.keys():
+            if t == pid:
+                continue
+            if t == tid:
+                continue
+            #if t == skiptid:
+                #continue
+            try:
+                print "STOPPING",t
+                self._wire_kill(tid, SIGSTOP)
+                self._wire_wait(tid)
+                print 'STOPPED',t
+            except Exception, e:
+                print('FAILED STOPPING: %s %s' % (t,e))
+
+        print "WAITED GOT",tid,sig
+        self.tid = tid
+
+        # a legit debugger event...
+        if os.WIFSTOPPED(status):
+
+            if sig == SIGTRAP:
+
+                if self._check_breakpoints():
+                    return
+
+                #if self._check_watchpoints():
+                    #return
+
+            self._clear_breakpoints()
+
+            if sig == SIG_LINUX_CLONE:
+                print 'CLONE'
+                self.tid = self._wire_ptrace_event(tid)
+                self.threads[self.tid] = 1
+                self._hook_fire('threadinit',{'tid':self.tid})
+                self._wire_ptrace_opts(self.tid)
                 return
 
-            #if self._check_watchpoints():
+            #if sig == SIG_LINUX_FORK:
+                #self.tid = self._wire_ptrace_event(tid)
+                #self.threads[self.tid] = 1
+                #self._hook_fire('threadinit',{'tid':self.tid})
+                #self._wire_ptrace_opts(self.tid)
                 #return
 
-        self._clear_breakpoints()
+            #if sig == SIG_LINUX_VFORK:
+                #self.tid = self._wire_ptrace_event(tid)
+                #self.threads[self.tid] = 1
+                #self._hook_fire('threadinit',{'tid':self.tid})
+                #self._wire_ptrace_opts(self.tid)
+                #return
 
-        if sig == SIG_LINUX_CLONE:
-            self.tid = self._wire_getPtraceEvent() # FIXME
-            self.threads[tid] = 1
-            self._fire_event('threadinit',{'tid':tid})
-            return
+            if sig == SIG_LINUX_EXIT:
+                exitcode = self._wire_ptrace_event(tid) >> 8
+                if tid != self.pid:
+                    self._hook_fire('threadexit',{'tid':tid,'exitcode':exitcode})
+                    self.threads.pop(tid,None)
+                    return
 
-        if sig == SIG_LINUX_EXIT:
-            exitcode = self._wire_getPtraceEvent() >> 8
-            if pid != self.pid:
-                self.tid = pid
-                self._fire_event('threadexit',{'tid':tid,'exitcode':exitcode})
-                self._wire_detach(pid)
+                self.exitcode = exitcode
+                self._hook_fire('procexit',{'pid':pid,'exitcode':exitcode})
+
+                for tid in self.threads.keys():
+                    self._wire_ptrace(PT_DETACH, tid, 0, 0)
+
                 return
 
-            self.exitcode = exitcode
-            self._fire_event('procexit',{'pid':pid,'exitcode':exitcode})
-            self._plat_detach()
+            self.sig = sig
+            self._hook_fire('signal',{'tid':pid,'sig':sig})
             return
 
-        self.sig = sig
-        self._fire_event('signal',{'tid':pid,'sig':sig})
-        return
-                
+        elif os.WIFEXITED(status):
+            self.exitcode = os.WEXITSTATUS(status)
+            # thread exit...
+            if tid != self.pid:
+                self._hook_fire('threadexit',{'tid':tid,'exitcode':self.exitcode})
+                self.threads.pop(tid)
+                return
+
+            self._hook_fire('procexit',{'pid':pid,'exitcode':self.exitcode})
+
+            for tid in self.threads.keys():
+                self._wire_ptrace(PT_DETACH, tid, 0, 0)
+
+            return
+
+        elif os.WIFSIGNALED(status):
+            self.exitcode = os.WTERMSIG(status)
+            self._hook_fire('procexit',{'pid':pid,'exitcode':self.exitcode})
+            return
+
+        else:
+            print('WHAT THE HELL DID WIF DO?')
+            self._hook_fire('break',{'tid':tid})
+            return
+
 
         # lets see what we've got...
         #if sig == CLONE
@@ -611,7 +800,7 @@ class LinuxTrace:
             #raise Exception
         #pid, status = os.waitpid(-1, 0x40000002)
 
-            #if v_posix.ptrace(cmd, tid, 0, 0) != 0:
+            #if _posix.ptrace(cmd, tid, 0, 0) != 0:
                 #pass
 
     def _plat_stepi(self):
@@ -620,22 +809,10 @@ class LinuxTrace:
     #def platformDetach(self):
     def _plat_detach(self):
         for tid in self.threads.keys():
-            self._fire_event('finithread',{'tid':tid})
-            self._wire_detach(tid)
+            self._hook_fire('finithread',{'tid':tid})
+            self._wire_ptrace(PT_DETACH,tid,0,0)
 
-        self._fire_event('finiproc',{'pid':self.pid})
-        self._wire_detach( self.pid )
-
-    def _hook_fire(self, name, info):
-        for hook in self.hooks.get(name):
-            try:
-                hook(name,info)
-            except Exception, e:
-                print('hook error: %s %s' % (hook,e))
-
-    def _hook_init(self, name, **hookdef):
-        self.hooks[name] = []
-        self.hookdefs[name] = hookdef
+        self._hook_fire('finiproc',{'pid':self.pid})
 
     def addTraceHook(self, evtname, hookfunc):
         '''
@@ -678,6 +855,15 @@ class LinuxTrace:
             return
         hookfuncs.remove(hookfunc)
 
+    def _wire_ptrace_opts(self, tid):
+        opts = PT_O_TRACESYSGOOD
+        if self.linuxver > (2,6,0):
+        #if platform.release()[:3] in ('2.6','3.0','3.1','3.2'):
+            #print 'CLONE AND EXIT'
+            opts |= PT_O_TRACECLONE | PT_O_TRACEEXIT | PT_O_TRACEVFORK | PT_O_TRACEFORK
+
+        return self._wire_ptrace(PT_SETOPTIONS, tid, 0, opts)
+
     #def fireTraceHooks(self, evtname, hookinfo):
 
     #def doAttachThread(self, tid, attached=False):
@@ -687,7 +873,7 @@ class LinuxTrace:
         #it's also gotta be thread wrapped).
         #"""
         #if not attached:
-            #if v_posix.ptrace(PT_ATTACH, tid, 0, 0) != 0:
+            #if _posix.ptrace(PT_ATTACH, tid, 0, 0) != 0:
                 #raise Exception("ERROR ptrace attach failed for thread %d" % tid)
 
         # We may have already revcieved the stop signal
@@ -710,7 +896,7 @@ class LinuxTrace:
 
         #self._wire_ptrace(PT_SETOPTIONS, tid, 0, opts)
 
-        #x = v_posix.ptrace(PT_SETOPTIONS, tid, 0, opts)
+        #x = _posix.ptrace(PT_SETOPTIONS, tid, 0, opts)
         #if x != 0:
             #self.libc.perror('ptrace PT_SETOPTION failed for thread %d' % tid)
 
@@ -810,18 +996,17 @@ class LinuxTrace:
 
             #return
 
-        #v_posix.PosixMixin.platformProcessEvent(self, event)
+        #_posix.PosixMixin.platformProcessEvent(self, event)
 
     #@v_base.threadwrap
-    def getPtraceEvent(self, tid=None):
+    #def getPtraceEvent(self, tid=None):
+    def _wire_ptrace_event(self, tid):
         """
         This *thread wrapped* function will get any pending GETEVENTMSG
         msgs.
         """
         p = c_ulong(0)
-        if tid == None:
-            tid = self.getMeta("ThreadId", -1)
-        if v_posix.ptrace(PT_GETEVENTMSG, tid, 0, addressof(p)) != 0:
+        if self._wire_ptrace(PT_GETEVENTMSG, tid, 0, addressof(p)) != 0:
             raise Exception('ptrace PT_GETEVENTMSG failed!')
         return p.value
 
@@ -837,7 +1022,7 @@ class LinuxTrace:
     def _plat_memmaps(self):
         maps = []
 
-        mapbuf = self._wire_readfile('/proc/%d/maps' % self.pid)
+        mapbuf = self._wire_filecat('/proc/%d/maps' % self.pid)
         for line in mapbuf.split('\n'):
 
         #mapfile = file("/proc/%d/maps" % self.pid)
@@ -897,26 +1082,26 @@ class LinuxTrace:
 #
 # NOTE: Both of these use class locals set by the i386/amd64 variants
 #
-    @v_base.threadwrap
+    #@v_base.threadwrap
     def platformGetRegCtx(self, tid):
         ctx = self.archGetRegCtx()
         u = self.user_reg_struct()
-        if v_posix.ptrace(PT_GETREGS, tid, 0, addressof(u)) == -1:
+        if self._wire_ptrace(PT_GETREGS, tid, 0, addressof(u)) == -1:
             raise Exception("Error: ptrace(PT_GETREGS...) failed!")
 
         ctx._rctx_Import(u)
         return ctx
 
-    @v_base.threadwrap
+    #@v_base.threadwrap
     def platformSetRegCtx(self, tid, ctx):
         u = self.user_reg_struct()
         # Populate the reg struct with the current values (to allow for
         # any regs in that struct that we don't track... *fs_base*ahem*
-        if v_posix.ptrace(PT_GETREGS, tid, 0, addressof(u)) == -1:
+        if self._wire_ptrace(PT_GETREGS, tid, 0, addressof(u)) == -1:
             raise Exception("Error: ptrace(PT_GETREGS...) failed!")
 
         ctx._rctx_Export(u)
-        if v_posix.ptrace(PT_SETREGS, tid, 0, addressof(u)) == -1:
+        if self._wire_ptrace(PT_SETREGS, tid, 0, addressof(u)) == -1:
             raise Exception("Error: ptrace(PT_SETREGS...) failed!")
 
         """
@@ -929,26 +1114,25 @@ class LinuxTrace:
         """
 
 class Linuxi386Trace(
-        v_base.TracerBase,
+        v_base.TraceBase,
         LinuxTrace,
-        v_a_i386.i386Trace,
-        v_f_elf.ElfTrace):
+        v_i386.i386Trace,
+        v_elf.ElfTrace):
 
     user_reg_struct = user_regs_i386
     user_dbg_offset = 252
     reg_val_mask = 0xffffffff
 
     def __init__(self):
-        vtrace.Trace.__init__(self)
-        v_base.TracerBase.__init__(self)
-        v_posix.ElfMixin.__init__(self)
-        v_i386.i386Mixin.__init__(self)
-        LinuxMixin.__init__(self)
+        v_base.TraceBase.__init__(self)
+        v_elf.ElfTrace.__init__(self)
+        v_i386.i386Trace.__init__(self)
+        LinuxTrace.__init__(self)
 
         # Pre-calc the index of the debug regs
         self.dbgidx = self.archGetRegCtx().getRegisterIndex("debug0")
 
-    @v_base.threadwrap
+    #@v_base.threadwrap
     def platformGetRegCtx(self, tid):
         ctx = LinuxMixin.platformGetRegCtx( self, tid )
         for i in intel_dbgregs:
@@ -957,7 +1141,7 @@ class Linuxi386Trace(
             ctx.setRegister(self.dbgidx+i, r & self.reg_val_mask)
         return ctx
 
-    @v_base.threadwrap
+    #@v_base.threadwrap
     def platformSetRegCtx(self, tid, ctx):
         LinuxMixin.platformSetRegCtx( self, tid, ctx )
         for i in intel_dbgregs:
@@ -966,7 +1150,7 @@ class Linuxi386Trace(
             if v_posix.ptrace(v_posix.PT_WRITE_U, tid, offset, val) != 0:
                 self.libc.perror('PT_WRITE_U failed for debug%d' % i)
 
-    @v_base.threadwrap
+    #@v_base.threadwrap
     def platformAllocateMemory(self, size, perms=e_mem.MM_RWX, suggestaddr=0):
         sp = self.getStackCounter()
         pc = self.getProgramCounter()
@@ -1013,14 +1197,16 @@ class Linuxi386Trace(
             self.setRegisters(regsave)
 
 class LinuxAmd64Trace(
-        vtrace.Trace,
-        LinuxPlatform,
-        vt_f_elf.ElfFormat,
-        vt_a_amd.Amd64Arch,
+            v_base.TraceBase,
+            LinuxTrace,
+            v_elf.ElfTrace,
+            v_amd64.Amd64Trace,
+            PyFilesWire,
+        ):
         #LinuxMixin,
         #v_amd64.Amd64Mixin,
         #v_posix.ElfMixin,
-        #v_base.TracerBase):
+        #v_base.TraceBase):
 
     user_reg_struct = user_regs_amd64
     user_dbg_offset = 848
@@ -1030,7 +1216,7 @@ class LinuxAmd64Trace(
 
     #def __init__(self):
         #vtrace.Trace.__init__(self)
-        #v_base.TracerBase.__init__(self)
+        #v_base.TraceBase.__init__(self)
         #v_posix.ElfMixin.__init__(self)
         #v_amd64.Amd64Mixin.__init__(self)
         ##LinuxMixin.__init__(self)
@@ -1038,7 +1224,17 @@ class LinuxAmd64Trace(
         self.dbgidx = self.archGetRegCtx().getRegisterIndex("debug0")
 
     def _plat_getregctx(self, tid):
+        print 'GET REGS',tid
+        ctx = self.archGetRegCtx()
+        u = self.user_reg_struct()
+        if self._wire_ptrace(PT_GETREGS, tid, 0, addressof(u)) == -1:
+            raise Exception("Error: ptrace(PT_GETREGS...) failed!")
+
+        ctx._rctx_Import(u)
+        return ctx
+
     def _plat_setregctx(self, tid, ctx):
+        pass
 
     #@v_base.threadwrap
     #def platformGetRegCtx(self, tid):
@@ -1062,18 +1258,17 @@ arm_break_be = 'e7f001f0'.decode('hex')
 arm_break_le = 'f001f0e7'.decode('hex')
 
 class LinuxArmTrace(
-        vtrace.Trace,
-        LinuxMixin,
+        v_base.TraceBase,
+        LinuxTrace,
         v_arm.ArmMixin,
-        v_posix.ElfMixin,
-        v_base.TracerBase):
+        v_elf.ElfTrace):
 
     user_reg_struct = user_regs_arm
     reg_val_mask = 0xffffffff
 
     def __init__(self):
         vtrace.Trace.__init__(self)
-        v_base.TracerBase.__init__(self)
+        v_base.TraceBase.__init__(self)
         v_posix.ElfMixin.__init__(self)
         v_arm.ArmMixin.__init__(self)
         LinuxMixin.__init__(self)
@@ -1086,12 +1281,11 @@ class LinuxArmTrace(
         if self._step_cleanup != None:
             [ self.writeMemory( bva, bytes ) for (bva,bytes) in self._step_cleanup ]
             self._step_cleanup = None
-        return v_base.TracerBase._fireStep( self )
+        return v_base.TraceBase._fireStep( self )
 
     def archGetBreakInstr(self):
         return arm_break_le
 
-    @v_base.threadwrap
     def platformStepi(self):
         # This is a total rediculous hack to account
         # for the fact that the arm platform couldn't
