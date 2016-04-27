@@ -154,7 +154,7 @@ class CobraMethod:
 
     def __call__(self, *args, **kwargs):
         name = self.proxy._cobra_name
-        if verbose: print("CALLING:",name,self.methname,repr(args)[:20],repr(kwargs)[:20])
+        if verbose: print("CALLING: %r %r %r %r" % (name,self.methname,repr(args)[:20],repr(kwargs)[:20]))
     
         async = kwargs.pop('_cobra_async',None)
         if async:
@@ -641,7 +641,7 @@ class CobraDaemon(ThreadingTCPServer):
         """
         Decref this object and if it reaches 0, unshare it.
         """
-        if verbose: print("DECREF:",name)
+        if verbose: print("DECREF: %r" % name)
         self.reflock.acquire()
         try:
 
@@ -650,14 +650,14 @@ class CobraDaemon(ThreadingTCPServer):
                 refcnt -= 1
                 self.refcnts[name] = refcnt
                 if refcnt == 0:
-                    if verbose: print("UNSHARING OBJECT:",name)
+                    if verbose: print("UNSHARING OBJECT: %r" % name)
                     self.unshareObject(name,ok=ok)
 
         finally:
             self.reflock.release()
 
     def increfObject(self, name):
-        if verbose: print("INCREF:",name)
+        if verbose: print("INCREF: %r" % name)
         self.reflock.acquire()
         try:
             refcnt = self.refcnts.get(name, None)
@@ -668,7 +668,7 @@ class CobraDaemon(ThreadingTCPServer):
             self.reflock.release()
 
     def unshareObject(self, name, ok=True):
-        if verbose: print('UNSHARE',name)
+        if verbose: print('UNSHARE %r' % name)
         self.refcnts.pop(name, None)
         obj = self.shared.pop(name, None)
 
@@ -705,7 +705,7 @@ class CobraConnectionHandler:
 
         peer = self.socket.getpeername()
         me = self.socket.getsockname()
-        if verbose: print("GOT A CONNECTIONN",peer)
+        if verbose: print("GOT A CONNECTION " + repr(peer))
 
         sock = self.socket
         if self.daemon.sslkey:
@@ -774,14 +774,14 @@ class CobraConnectionHandler:
                 continue
 
             obj = self.daemon.getSharedObject(name)
-            if verbose: print("MSG FOR:",name,type(obj))
+            if verbose: print("MSG FOR: %r %r" % (name,type(obj)))
 
             if obj == None:
                 try:
                     csock.sendMessage(COBRA_ERROR, name, Exception("Unknown object requested: %s" % name))
                 except CobraClosedException:
                     pass
-                if verbose: print("WARNING: Got request for unknown object",name)
+                if verbose: print("WARNING: Got request for unknown object %r" % name)
                 continue
 
             try:
@@ -827,7 +827,7 @@ class CobraConnectionHandler:
             pass
 
     def handleCall(self, csock, oname, obj, data):
-        if verbose: print("GOT A CALL",data)
+        if verbose: print("GOT A CALL " + repr(data))
         methodname, args, kwargs = data
         meth = getattr(obj, methodname)
         if getattr(meth,'__no_cobra__',False):
@@ -850,7 +850,7 @@ class CobraConnectionHandler:
             raise
 
     def handleGetAttr(self, csock, oname, obj, name):
-        if verbose: print("GETTING ATTRIBUTE:",name)
+        if verbose: print("GETTING ATTRIBUTE: %r" % name)
         if not self.daemon.cangetattr: raise CobraPermDenied('getattr disallowed!')
         try:
             csock.sendMessage(COBRA_GETATTR, "", getattr(obj, name))
@@ -858,7 +858,7 @@ class CobraConnectionHandler:
             pass
 
     def handleSetAttr(self, csock, oname, obj, data):
-        if verbose: print("SETTING ATTRIBUTE:",data)
+        if verbose: print("SETTING ATTRIBUTE: %r" % data)
         if not self.daemon.cansetattr: raise CobraPermDenied('setattr disallowed!')
         name,value = data
         setattr(obj, name, value)
@@ -868,7 +868,7 @@ class CobraConnectionHandler:
             pass
 
     def handleGoodbye(self, csock, oname, obj, data):
-        if verbose: print('GOODBYE!',oname,obj,data)
+        if verbose: print('GOODBYE! %r %r %r' % (oname,obj,data))
         self.daemon.decrefObject(oname,ok=data)
         try:
             csock.sendMessage(COBRA_GOODBYE, "", "")
@@ -936,7 +936,7 @@ class CobraProxy:
 
         scheme, host, port, name, urlparams = chopCobraUri( URI )
 
-        if verbose: print("HOST",host,"PORT",port,"OBJ",name)
+        if verbose: print("HOST %r PORT %r OBJ %r" % (host,port,name))
 
         self._cobra_uri = URI
         self._cobra_scheme = scheme
@@ -1120,7 +1120,7 @@ class CobraProxy:
             raise Exception("Invalid Cobra Response")
 
     def __getattr__(self, name):
-        if verbose: print("GETATTR",name)
+        if verbose: print("GETATTR %r" % name)
 
         if name == "__getinitargs__":
             raise AttributeError()
