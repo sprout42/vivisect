@@ -30,7 +30,7 @@ cobra.cluster.getAndDoWork("%s", docode=%s)
 
 class InvalidInProgWorkId(Exception):
     def __init__(self, workid):
-        Exception.__init__(self, "Work ID %d is not valid" % workid)
+        Exception.__init__(self, "Work ID %r is not valid" % workid)
         self.workid = workid
 
 class ClusterWork(object):
@@ -112,8 +112,14 @@ class ClusterWork(object):
 
         NOTE: The server must use shareFileToWorkers().
         '''
-        uri = self.server.openSharedFile( filename )
+        uri = self.server.openSharedFile( filename)
         return cobra.CobraProxy(uri)
+
+    def closeSharedFile(self, fileproxy):
+        '''
+        Tell server to close the currently in use file and shared object
+        '''
+        self.server.closeSharedFile( fileproxy._cobra_uri)
 
     def getServerObject(self, objname):
         '''
@@ -250,6 +256,15 @@ class ClusterServer:
 
         uri = 'cobra://%s:%d/%s' % (host, port, cname)
         return uri
+
+    def closeSharedFile(self, uri):
+        '''
+        This filename is done, it can be closed (shared object and cache removed)
+        '''
+        name = uri.split('/')[-1]
+        self.cobrad.decrefObject(name)
+
+
 
     def getServerInfo(self): 
         '''
