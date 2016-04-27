@@ -264,8 +264,6 @@ class ClusterServer:
         name = uri.split('/')[-1]
         self.cobrad.decrefObject(name)
 
-
-
     def getServerInfo(self): 
         '''
         Return server host/port information
