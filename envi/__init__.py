@@ -17,6 +17,7 @@ ARCH_THUMB16     = 4 << 16
 ARCH_THUMB2      = 5 << 16
 ARCH_MSP430      = 6 << 16
 ARCH_H8          = 7 << 16
+ARCH_CLM         = 8 << 16
 ARCH_MASK        = 0xffff0000   # Masked into IF_FOO and BR_FOO values
 
 arch_names = {
@@ -28,6 +29,7 @@ arch_names = {
     ARCH_THUMB2:    'thumb2',
     ARCH_MSP430:    'msp430',
     ARCH_H8:        'h8',
+    ARCH_CLM:       'clm',
 }
 
 arch_by_name = {
@@ -41,6 +43,7 @@ arch_by_name = {
     'thumb2':   ARCH_THUMB2,
     'msp430':   ARCH_MSP430,
     'h8':       ARCH_H8,
+    'clm':      ARCH_CLM,
 }
 
 # Instruction flags (The first 8 bits are reserved for arch independant use)
@@ -1356,6 +1359,10 @@ def getArchModule(name=None):
         import envi.archs.h8 as e_h8
         return e_h8.H8Module()
 
+    elif name in ( 'clm', ):
+        import envi.archs.clm as e_clm
+        return e_clm.ClmModule()
+
     else:
         raise ArchNotImplemented(name)
 
@@ -1370,6 +1377,7 @@ def getArchModules(default=ARCH_DEFAULT):
     import envi.archs.amd64 as e_amd64
     import envi.archs.thumb16 as e_thumb16
     import envi.archs.msp430 as e_msp430
+    import envi.archs.clm as e_clm
 
     archs = [ None, ]
 
@@ -1381,6 +1389,7 @@ def getArchModules(default=ARCH_DEFAULT):
     archs.append( e_thumb16.Thumb2Module() )
     archs.append( e_msp430.Msp430Module() )
     archs.append( e_h8.H8Module() )
+    archs.append( e_clm.ClmModule() )
 
     # Set the default module ( or None )
     archs[ ARCH_DEFAULT ] = archs[ default >> 16 ]

@@ -60,6 +60,7 @@ def guessFormat(bytes):
     if bytes[0] == ':':
         return 'ihex'
 
+    return 'clmblob'
     return 'blob'
 
 def guessFormatFilename(filename):

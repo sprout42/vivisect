@@ -230,6 +230,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
 
         emu = eclass(self, logwrite=logwrite, logread=logread)
         emu.setEndian(self.getEndian())
+        emu.imem_archs[envi.ARCH_DEFAULT] = self.getMemArchModule()
 
         return emu
 

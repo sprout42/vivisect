@@ -148,7 +148,10 @@ class WorkspaceRenderer(e_canvas.MemoryRenderer):
         if ltype == LOC_OP:
             mcanv.addText(linepre, tag=vatag)
             opbytes = mcanv.mem.readMemory(lva, lsize)
-            mcanv.addText(opbytes[:8].encode('hex').ljust(17))
+            if type(opbytes[0]) in (int,long):
+                mcanv.addText(' '.join(["%.3x"%b for b in opbytes[:8]]).ljust(25))
+            else:
+                mcanv.addText(opbytes[:8].encode('hex').ljust(17))
 
             # extra is the opcode object
             try:
@@ -240,9 +243,14 @@ class WorkspaceRenderer(e_canvas.MemoryRenderer):
             mcanv.addText(linepre, vatag)
             offset,bytes = self.vw.getByteDef(lva)
             b = bytes[offset]
-            mcanv.addNameText(b.encode('hex'), typename="undefined")
-            if b in string.printable:
-                mcanv.addText('    %s' % repr(b), tag=cmnttag)
+            if type(b) == int:
+                mcanv.addNameText('%.2x' % b, typename="undefined")
+                if b<256 and chr(b) in string.printable:
+                    mcanv.addText('    %s' % repr(b), tag=cmnttag)
+            else:
+                mcanv.addNameText(b.encode('hex'), typename="undefined")
+                if b in string.printable:
+                    mcanv.addText('    %s' % repr(b), tag=cmnttag)
             if cmnt != None:
                 mcanv.addText('    ;%s' % cmnt, tag=cmnttag)
             mcanv.addText("\n")

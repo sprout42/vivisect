@@ -103,7 +103,7 @@ class WorkspaceEmulator:
             # Create some pre-made taints for positive stack indexes
             # NOTE: This is *ugly* for speed....
             taints = [ self.setVivTaint('funcstack', i * self.psize) for i in xrange(20) ]
-            taintbytes = ''.join([ e_bits.buildbytes(taint,self.psize) for taint in taints ])
+            taintbytes =([ self.buildbytes(taint,self.psize) for taint in taints ])
 
             self.writeMemory(self.stack_pointer, taintbytes)
         else:
@@ -115,7 +115,7 @@ class WorkspaceEmulator:
             new_map_top = self.stack_map_base
             new_map_base = new_map_top - new_map_size
 
-            stack_map = ''.join([struct.pack('<I', new_map_base+(i*4))
+            stack_map = ([struct.pack('<I', new_map_base+(i*4))
                                     for i in xrange(new_map_size)])
 
             self.addMemoryMap(new_map_base, 6, "[stack]", stack_map)
@@ -123,6 +123,12 @@ class WorkspaceEmulator:
 
             # no need to do tainting here, since SP will always be in the
             #   first map
+
+    def buildbytes(self, val, size):
+        return e_bits.buildbytes(val, size)
+
+    def parsebytes(self, bytez, size):
+        return e_bits.parsebytes(bytez, size)
 
     def stopEmu(self):
         '''
@@ -556,7 +562,7 @@ class WorkspaceEmulator:
             lva, lsize, ltype, ltinfo = loc
             if ltype == LOC_IMPORT and lsize == size: # They just read an import.
                 ret = self.setVivTaint('import', loc)
-                return e_bits.buildbytes(ret, lsize)
+                return self.buildbytes(ret, lsize)
 
         self._useVirtAddr(va)
 
