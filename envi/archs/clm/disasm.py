@@ -136,7 +136,7 @@ class ClmImmOper(envi.ImmedOper):
 
             if self.tsize == 6:
                 mcanv.addNameText("0x%.4x:0x%.8x" % (value>>32, value&0xffffffff))
-            elif self.imm >= 4096:
+            elif value >= 4096:
                 mcanv.addNameText('0x%.8x' % value)
             else:
                 mcanv.addNameText(str(value))
@@ -405,6 +405,44 @@ class Inst18bit(Inst):
     return 0
 
 
+class la(Inst54bit):
+  """ A combo of ML and MH """
+  add_commas = True
+
+  def __init__(self, addr, mh, ml):
+    self.addr = addr
+    self.reg = mh.get_operands()[0]
+    self.mh = mh
+    self.ml = ml
+    self.name = "LA"
+
+  def get_operands(self):
+    ml_value = self.ml.get_operands()[1][1]
+    mh_value = self.mh.get_operands()[1][1]
+
+    value = (mh_value << 10) | (ml_value & 0x3ff)
+    return 0, (ClmRegOper(self.reg), ClmImmOper(value))
+
+  @staticmethod
+  def decode(cls, name, values, addr, instruction):
+    first = instruction >> 27
+    second = instruction & mask(27)
+
+    ml = ra_im_al.decode(ra_im_al, "ML", Instructions["ML"][2], addr, first)
+    print "--ml %s" % ml
+    if ml == None:
+      return None
+    mh = ra_im_al.decode(ra_im_al, "MH", Instructions["MH"][2], addr, second)
+    print "--mh %s" % mh
+    if mh == None:
+      return None
+
+    # Make sure they're for the same register
+    if mh.get_operands()[0] != ml.get_operands()[0]:
+      return None
+    return cls(addr, mh, ml)
+
+
 class ra_rb_im(Inst27bit):
   """
     ADCI ADCIM ADI ADIM ANI DVI DVIM DVIS DVISM MDI MDIM MDIS MDISM MUI MUIM MUIS MUISM ORI
@@ -429,6 +467,8 @@ class ra_rb_im(Inst27bit):
 
   @staticmethod
   def decode(cls, name, values, addr, instruction, va=0):
+    print hex(get_bits(instruction, 27, 0, 6)) , hex( int(values[0], 2))
+    print hex(get_bits(instruction, 27, 24, 25)), hex( int(values[1], 2))
     if get_bits(instruction, 27, 0, 6) == int(values[0],2) and get_bits(instruction, 27, 24, 25) == int(values[1],2):
       return cls(addr, instruction, name, va)
     return None
@@ -690,7 +730,12 @@ class ra_im_al(Inst27bit):
 
   def get_operands(self):
     reg = self.get_bits(5, 9)
-    imm = self.get_bits(10, 26)
+    if self.name == "MS":
+      imm = self.get_bits(11, 26)
+      if self.get_bits(10, 10): # Signed bit
+        imm = -((1 << 16) - imm)
+    else:
+      imm = self.get_bits(10, 26)
     return 0, (ClmRegOper(reg), ClmImmOper(imm))
 
   @staticmethod
@@ -830,8 +875,10 @@ class ra_wi_fl(Inst27bit):
 
   @staticmethod
   def decode(cls, name, values, addr, instruction, va=0):
+    #print hex(get_bits(instruction, 27, 0, 8)) , hex( int(values[0], 2))
+    #print hex(get_bits(instruction, 27, 14, 25)), hex( int(values[1], 2))
     if (get_bits(instruction, 27, 0, 8) == int(values[0], 2)
-      and get_bits(instruction, 27, 14, 25) == int(values[0], 2)):
+      and get_bits(instruction, 27, 14, 25) == int(values[1], 2)):
       return cls(addr, instruction, name, va)
     return None
 
@@ -847,11 +894,15 @@ class ClmDisasm:
 
         bytes_per_size = {}
         found = []
-        for mnem, (size, inst_type, values, flags) in Instructions.items():
+
+        #for mnem, (size, inst_type, values, flags) in Instructions.items():
+        for mnem in InstructionKeys:
+            (size, inst_type, values, flags) = Instructions[mnem]
             
             size /= 9
             if size not in bytes_per_size:
                 value = read_memory_value(bytez[off:off+size])
+                #print hex(value)
                 bytes_per_size[size] = value
 
             parser = p_map.get(inst_type)
@@ -864,12 +915,15 @@ class ClmDisasm:
             #print "\treturned: %r" % inst
             if inst != None:
                 found.append((inst, flags))
-                print "found: %s  (%r)" % (mnem, parser)
+                print "found: %x: %s  (%r)" % (va, mnem, parser)
 
         if len(found) > 1:
+            for inst in found:
+                if inst.name == "LA":
+                    return inst
             raise RuntimeError("Multiple instructions found {}".format([x.__class__.__name__ for x in found]))
         elif len(found) == 0:
-            print("Unknown instruction decoding {}".format([x.__class__.__name__ for x in found]))
+            print("Unknown instruction decoding (%x) {}".format([x.__class__.__name__ for x in found]) % va)
             return None
 
         meta, flags = found[0]
@@ -881,6 +935,9 @@ class ClmDisasm:
         else:
             cond = 15
 
+        if flags & envi.IF_BRANCH and cond==15:
+            flags |= IF_NOFALL
+
         opcode = globals().get("INS_" + mnem.upper())
         mnem = meta.get_name()
 
@@ -888,7 +945,7 @@ class ClmDisasm:
             flags |= IF_SETFLAGS
 
 
-        print "COND: %d" % cond
+        #print "COND: %d" % cond
         op = ClmOpcode(va, opcode, mnem, cond, meta.SIZE, olist, flags)
 
         return op
