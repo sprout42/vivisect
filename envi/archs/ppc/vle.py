@@ -115,29 +115,37 @@ case_E_IA16 = case_E_I16A
 
 SCI_mask = (0xffffff00, 0xffff00ff, 0xff00ffff, 0x00ffffff)
 def case_E_SCI8(types, data, va):
-    val0 = (data & 0x3E00000) >> 21;
-    op0 = operands[types[0]]
-    val1 = (data & 0x1F0000) >> 16;
-    op1 = operands[types[1]]
-    ui8 = data & 0xFF;
-    scl = (data & 0x300) >> 8;
-    f = bool(data & 0x400)
+    opers = []
+    if (types[0] != TYPE_NONE):
+        val0 = (data & 0x3E00000) >> 21;
+        op0 = operands[types[0]]
+        opers.append(op0(val0, va))
 
-    val2 = (ui8 << (8*scl)) | (f * SCI_mask[scl])
-    '''
-    if scl == 0:
-        val2 = ui8 | (f ? 0xffffff00 : 0);
-    elif scl == 1:
-        val2 = (ui8 << 8) | (f ? 0xffff00ff : 0);
-    elif scl == 2:
-        val2 = (ui8 << 16) | (f ? 0xff00ffff : 0);
-    else:
-        val2 = (ui8 << 24) | (f ? 0x00ffffff : 0);
-    '''
+    if (types[1] != TYPE_NONE):
+        val1 = (data & 0x1F0000) >> 16;
+        op1 = operands[types[1]]
+        opers.append(op1(val1, va))
 
-    op2 = operands[types[2]]
+    if (types[2] != TYPE_NONE):
+        ui8 = data & 0xFF;
+        scl = (data & 0x300) >> 8;
+        f = bool(data & 0x400)
 
-    opers = ( op0(val0, va), op1(val1, va), op2(val2, va) )
+        val2 = (ui8 << (8*scl)) | (f * SCI_mask[scl])
+        '''
+        if scl == 0:
+            val2 = ui8 | (f ? 0xffffff00 : 0);
+        elif scl == 1:
+            val2 = (ui8 << 8) | (f ? 0xffff00ff : 0);
+        elif scl == 2:
+            val2 = (ui8 << 16) | (f ? 0xff00ffff : 0);
+        else:
+            val2 = (ui8 << 24) | (f ? 0x00ffffff : 0);
+        '''
+
+        op2 = operands[types[2]]
+        opers.append(op2(val2, va))
+
     return opers
 
 # Handles SCI8 form instructions with rA and rS inverted
@@ -192,16 +200,6 @@ def case_E_SCI8CR(types, data, va):
     op2 = operands[types[2]]
 
     opers = ( op0(val0, va), op1(val1, va), op2(val2, va) )
-    return opers
-
-# Handles SCI8 form instructions that don't use the immediate field
-def case_E_SCI8_2(types, data, va):
-    val0 = (data & 0x03F00000) >> 21;
-    op0 = operands[types[0]]
-    val1 = (data & 0x01F0000) >> 16;
-    op1 = operands[types[1]]
-
-    opers = ( op0(val0, va), op1(val1, va) )
     return opers
 
 def case_E_I16L(types, data, va):
@@ -554,7 +552,6 @@ e_handlers = {
         E_SCI8: case_E_SCI8,
         E_SCI8I: case_E_SCI8I,
         E_SCI8CR: case_E_SCI8CR,
-        E_SCI8_2: case_E_SCI8_2,
         E_I16L: case_E_I16L,
         E_I16LS: case_E_I16LS,
         E_BD24: case_E_BD24,
