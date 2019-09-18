@@ -97,11 +97,11 @@ class VQVivFuncgraphCanvas(vq_memory.VivCanvasBase):
             menu = QMenu(parent=self)
 
         self.viewmenu = menu.addMenu('view   ')
-        #self.viewmenu.addAction("Save frame to HTML", ACT(self._menuSaveToHtml))
         self.viewmenu.addAction("Refresh", ACT(self.refresh))
         self.viewmenu.addAction("Paint Up", ACT(self.paintUp.emit))
         self.viewmenu.addAction("Paint Down", ACT(self.paintDown.emit))
         self.viewmenu.addAction("Paint Down until remerge", ACT(self.paintMerge.emit))
+        self.viewmenu.addAction("Save frame to HTML", ACT(self._menuSaveToHtml))
 
         menu.exec_(event.globalPos())
 
@@ -634,6 +634,60 @@ class VQVivFuncgraphView(vq_hotkey.HotKeyMixin, e_qt_memory.EnviNavMixin, QWidge
         vqtevent('viv:colormap', colormap)
         return colormap
 
+    def VWE_SYMHINT(self, vw, event, einfo):
+        va, idx, hint = einfo
+        self.mem_canvas.renderMemoryUpdate(va, 1)
+
+    def VWE_ADDLOCATION(self, vw, event, einfo):
+        va,size,ltype,tinfo = einfo
+        self.mem_canvas.renderMemoryUpdate(va, size)
+
+    def VWE_DELLOCATION(self, vw, event, einfo):
+        va,size,ltype,tinfo = einfo
+        self.mem_canvas.renderMemoryUpdate(va, size)
+
+    def VWE_ADDFUNCTION(self, vw, event, einfo):
+        va,meta = einfo
+        self.mem_canvas.renderMemoryUpdate(va, 1)
+
+    def VWE_SETFUNCMETA(self, vw, event, einfo):
+        fva, key, val = einfo
+        self._updateFunction(fva)
+
+    def VWE_SETFUNCARGS(self, vw, event, einfo):
+        fva, fargs = einfo
+        self._updateFunction(fva)
+
+    def VWE_COMMENT(self, vw, event, einfo):
+        va,cmnt = einfo
+        self.mem_canvas.renderMemoryUpdate(va, 1)
+
+    def _updateFunction(self, fva):
+        for cbva, cbsize, cbfva in self.vw.getFunctionBlocks(fva):
+            self.mem_canvas.renderMemoryUpdate(cbva, cbsize)
+
+    @idlethread
+    def VWE_SETNAME(self, vw, event, einfo):
+        va,name = einfo
+        self.mem_canvas.renderMemoryUpdate(va, 1)
+        for fromva,tova,rtype,rflag in self.vw.getXrefsTo(va):
+            self.mem_canvas.renderMemoryUpdate(fromva, 1)
+
+    @idlethread
+    def VTE_IAMLEADER(self, vw, event, einfo):
+        user,fname = einfo
+        def setFollow():
+            self._following = einfo
+            self.updateMemWindowTitle()
+
+        self._follow_menu.addAction('%s - %s' % (user,fname), setFollow)
+
+    @idlethread
+    def VTE_FOLLOWME(self, vw, event, einfo):
+        user,fname,expr = einfo
+        if self._following != (user,fname):
+            return
+        self.enviNavGoto(expr)
 #@idlethread
 #def showFunctionGraph(fva, vw, vwqgui):
     #view = VQVivFuncgraphView(fva, vw, vwqgui)

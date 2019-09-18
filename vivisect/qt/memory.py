@@ -1,8 +1,10 @@
 
 import envi
 try:
+    from PyQt5.QtCore   import pyqtSignal, QPoint, PYQT_VERSION_STR
     from PyQt5.QtWidgets import *
 except:
+    from PyQt4.QtCore   import pyqtSignal, QPoint, PYQT_VERSION_STR
     from PyQt4.QtGui import *
 
 import envi.qt as envi_qt
@@ -290,6 +292,7 @@ class VivCanvasBase(vq_hotkey.HotKeyMixin, e_mem_canvas.VQMemoryCanvas):
 
 
 class VQVivMemoryCanvas(VivCanvasBase):
+    refreshSignal = pyqtSignal()
 
     def wheelEvent(self, event):
         frame = self.page().mainFrame()
@@ -342,12 +345,22 @@ class VQVivMemoryCanvas(VivCanvasBase):
         nva, nvsz, nvt, nvti = nloc
         return (nva, va-nva)
 
+    @idlethread
+    def setScrollPosition(self, x, y):
+        '''
+        Sets the view reticle to an absolute scroll position
+        '''
+        point = QPoint(x, y)
+        self.page().mainFrame().setScrollPosition(point)
+
 
 class VQVivMemoryView(e_mem_qt.VQMemoryWindow, viv_base.VivEventCore):
+    _renderDoneSignal = pyqtSignal()
 
     def __init__(self, vw, vwqgui):
         self.vw = vw
         self.vwqgui = vwqgui
+        self._last_viewpt = None
 
         self._leading = False
         self._following = None
@@ -359,8 +372,13 @@ class VQVivMemoryView(e_mem_qt.VQMemoryWindow, viv_base.VivEventCore):
         vwqgui.addEventCore(self)
         self.mem_canvas._canv_rend_middle = True
 
+        self._renderDoneSignal.connect(self._refresh_cb)
+        self.mem_canvas.refreshSignal.connect(self.refresh)
+
         self.addHotKeyTarget('viv:xrefsto', self._viv_xrefsto)
         self.addHotKey('x', 'viv:xrefsto')
+        self.addHotKeyTarget('funcgraph:refresh', self.refresh)
+        self.addHotKey('f5', 'funcgraph:refresh')
 
     def getRendToolsMenu(self):
         menu = e_mem_qt.VQMemoryWindow.getRendToolsMenu(self)
@@ -442,6 +460,41 @@ class VQVivMemoryView(e_mem_qt.VQMemoryWindow, viv_base.VivEventCore):
     def _updateFunction(self, fva):
         for cbva, cbsize, cbfva in self.vw.getFunctionBlocks(fva):
             self.mem_canvas.renderMemoryUpdate(cbva, cbsize)
+
+    @idlethread
+    def _renderMemory(self):
+        try:
+            e_mem_qt.VQMemoryWindow._renderMemory(self)
+            self._renderDoneSignal.emit()
+
+        except Exception, e:
+            self.mem_canvas.addText('Render Exception: (%s)' % (e,))
+
+    def refresh(self):
+        '''
+        Cause the Memory View to redraw itself.
+        This is particularly helpful because comments and name changes don't
+        immediately display.  Perhaps someday this will update only the blocks
+        that have changed since last update, and be fast, so we can update
+        after every change.  
+        '''
+        print "refresh"
+        self._last_viewpt = self.mem_canvas.page().mainFrame().scrollPosition()
+        self.clearText()
+        self.fva = None
+        self._renderMemory()
+
+    @workthread
+    def _refresh_cb(self):
+        '''
+        This is a hack to make sure that when _renderMemory() completes,
+        _refresh_3() gets run after all other rendering events yet to come.
+        '''
+        if self._last_viewpt == None:
+            return
+
+        self.mem_canvas.setScrollPosition(self._last_viewpt.x(), self._last_viewpt.y())
+        self._last_viewpt = None
 
     def VTE_IAMLEADER(self, vw, event, einfo):
         user,followname = einfo
