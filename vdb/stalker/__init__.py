@@ -32,7 +32,7 @@ class StalkerCodeFlow(e_codeflow.CodeFlowContext):
                 if not self.trace.probeMemory(br, 1, e_mem.MM_READ):
                     continue
 
-                br = self.trace.readMemoryFormat(br, '<P')[0]
+                br = self.trace.readMemoryPtr(br)
 
             # Skip branches to other maps...
             if br != None and self.trace.getMemoryMap(br) != self.mmap:

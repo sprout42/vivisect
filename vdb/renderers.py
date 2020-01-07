@@ -47,7 +47,7 @@ class OpcodeRenderer(e_canvas.MemoryRenderer):
 
             sym = None
             if trace.isValidPointer(ova):
-                rova = trace.readMemoryFormat(ova, '<P')[0]
+                rova = trace.readMemoryPtr(ova)
                 sym = trace.getSymByAddr(rova)
 
             if sym == None:

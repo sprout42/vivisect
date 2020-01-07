@@ -33,6 +33,8 @@ class ArgDefSymEmu(object):
     called by {get, set}SymbolikArgs.  This allows us to not have to
     re-implement cc argument parsing *again* for symbolics.
     '''
+    psize = None
+
     def __init__(self):
         self.xlator = self.__xlator__(None)
 
@@ -1089,6 +1091,7 @@ class i386SymbolikTranslator(IntelSymbolikTranslator):
 
 class i386ArgDefSymEmu(ArgDefSymEmu):
     __xlator__ = i386SymbolikTranslator
+    psize = 4
 
 class i386SymCallingConv(vsym_callconv.SymbolikCallingConvention):
     __argdefemu__ = i386ArgDefSymEmu

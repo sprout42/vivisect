@@ -244,6 +244,7 @@ class Amd64SymbolikTranslator(vsym_i386.IntelSymbolikTranslator):
 
 class Amd64ArgDefSymEmu(vsym_i386.ArgDefSymEmu):
     __xlator__ = Amd64SymbolikTranslator
+    psize = 8
 
 class MSx64CallSym(e_amd64.MSx64Call, vsym_callconv.SymbolikCallingConvention):
     __argdefemu__ = Amd64ArgDefSymEmu

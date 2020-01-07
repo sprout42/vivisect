@@ -534,7 +534,7 @@ class Opcode:
 
             if bva and (bflags & BR_DEREF):
                 if emu is not None:
-                    bva = emu.readMemoryFormat(bva, '<P')[0]
+                    bva = emu.readMemoryPtr(bva)
                     bflags &= (~BR_DEREF)
                 else:
                     bva = None
@@ -1005,7 +1005,7 @@ class CallingConvention(object):
                 args.append(emu.getRegister(arg_val))
                 argc -= 1
             elif arg_type == CC_STACK:
-                args.append(emu.readMemoryFormat(sp, '<P')[0])
+                args.append(emu.readMemoryPtr(sp))
                 argc -= 1
                 sp += self.align
             elif arg_type == CC_STACK_INF:
@@ -1050,7 +1050,7 @@ class CallingConvention(object):
                 argc -= 1
                 cur_arg += 1
             elif arg_type == CC_STACK:
-                args += emu.writeMemoryFormat(sp, '<P', args[cur_arg])
+                args += emu.writeMemoryPtr(sp, args[cur_arg])
                 argc -= 1
                 cur_arg += 1
                 sp += self.align
@@ -1084,7 +1084,7 @@ class CallingConvention(object):
             ra = emu.getRegister(rvalue)
         elif rtype == CC_STACK:
             sp = emu.getStackCounter() + rvalue
-            ra = emu.readMemoryFormat(sp, '<P')[0]
+            ra = emu.readMemoryPtr(sp)
         else:
             raise Exception('unknown argument type')
 
@@ -1101,7 +1101,7 @@ class CallingConvention(object):
             rv = emu.getRegister(rvalue)
         elif rtype == CC_STACK:
             sp = emu.getStackCounter() + rvalue
-            rv = emu.readMemoryFormat(sp, '<P')[0]
+            rv = emu.readMemoryPtr(sp)
         else:
             raise Exception('unknown argument type')
 
@@ -1118,7 +1118,7 @@ class CallingConvention(object):
             emu.setRegister(rvalue, ra)
         elif rtype == CC_STACK:
             sp = emu.getStackCounter() + rvalue
-            emu.writeMemoryFormat(sp, '<P', ra)
+            emu.writeMemoryPtr(sp, ra)
         else:
             raise Exception('unknown argument type')
 
@@ -1131,7 +1131,7 @@ class CallingConvention(object):
             emu.setRegister(rvalue, rv)
         elif rtype == CC_STACK:
             sp = emu.getStackCounter() + rvalue
-            emu.writeMemoryFormat(sp, '<P', rv)
+            emu.writeMemoryPtr(sp, rv)
         else:
             raise Exception('unknown argument type')
 
