@@ -43,6 +43,7 @@ from vivisect.const import *
 from vivisect.defconfig import *
 
 import vivisect.analysis.generic.emucode as v_emucode
+sys.setrecursionlimit(5000)
 
 logger = logging.getLogger(__name__)
 
@@ -1254,6 +1255,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
                 if refbflags & envi.BR_TABLE:
                     self.splitJumpTable(op.va, refva, tova, psize=psize)
 
+        i = 0
         tabdone = {}
         for i, rdest in enumerate(self.iterJumpTable(ptrbase, rebase=rebase, step=psize)):
             if not tabdone.get(rdest):
@@ -1271,6 +1273,8 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
 
         # This must be second (len(xrefsto))
         self.addXref(op.va, tova, REF_PTR)
+        self.setVaSetRow('SwitchCases', (op.va, op.va, i))
+        self.setVaSetRow('DynamicBranches', (op.va, repr(op), op.iflags))
 
     def makeOpcode(self, va, op=None, arch=envi.ARCH_DEFAULT):
         """
