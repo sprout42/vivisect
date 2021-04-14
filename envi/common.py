@@ -1,7 +1,7 @@
 import logging
 
 LOG_FORMAT = '%(asctime)s:%(levelname)s:%(name)s: %(message)s' \
-             '[%(filename)s:%(funcName)s:%(lineno)s:%(threadName)s]'
+             ' [%(filename)s:%(funcName)s:%(lineno)s:%(threadName)s]'
 
 EMULOG = 9
 

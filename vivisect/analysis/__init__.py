@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 ARM_ARCHS = ('arm', 'thumb', 'thumb16')
-
+PPC_ARCHS = ('ppc', 'vle', 'ppc-embedded', 'ppc-server', 'ppc32-embedded', 'ppc32-server', 'ppc64-embedded', 'ppc64-server', )
 
 def addAnalysisModules(vw):
 
@@ -73,6 +73,9 @@ def addAnalysisModules(vw):
         elif arch == 'amd64':
             vw.addFuncAnalysisModule("vivisect.analysis.amd64.emulation")
 
+        elif arch in PPC_ARCHS:
+            vw.addFuncAnalysisModule("vivisect.analysis.ppc.emulation")
+
         elif arch in ARM_ARCHS:
             vw.addFuncAnalysisModule("vivisect.analysis.arm.emulation")
 
@@ -83,7 +86,6 @@ def addAnalysisModules(vw):
         vw.addFuncAnalysisModule("vivisect.analysis.generic.noret")
         vw.addAnalysisModule("vivisect.analysis.generic.funcentries")
         vw.addAnalysisModule('vivisect.analysis.ms.msvcfunc')
-
         vw.addAnalysisModule('vivisect.analysis.generic.strconst')
 
     elif fmt == 'elf':  # ELF ########################################################
@@ -134,6 +136,8 @@ def addAnalysisModules(vw):
         elif arch in ARM_ARCHS:
             vw.addFuncAnalysisModule("vivisect.analysis.arm.emulation")
 
+        elif arch in PPC_ARCHS:
+            vw.addFuncAnalysisModule("vivisect.analysis.ppc.emulation")
 
         # we want emulation to have completed so we know what the Args look like
         vw.addFuncAnalysisModule("vivisect.analysis.generic.symswitchcase")
@@ -167,6 +171,9 @@ def addAnalysisModules(vw):
         elif arch == 'amd64':
             vw.addFuncAnalysisModule("vivisect.analysis.amd64.emulation")
 
+        elif arch in PPC_ARCHS:
+            vw.addFuncAnalysisModule("vivisect.analysis.ppc.emulation")
+
         elif arch in ARM_ARCHS:
             vw.addFuncAnalysisModule("vivisect.analysis.arm.emulation")
             vw.addFuncAnalysisModule('vivisect.analysis.arm.renaming')
@@ -176,15 +183,21 @@ def addAnalysisModules(vw):
         vw.addAnalysisModule("vivisect.analysis.generic.pointers")
 
     elif fmt == 'blob': # BLOB ######################################################
+        if arch in PPC_ARCHS:
+            # potentially tags a new EntryPoint, so must preceed entrypoints
+            vw.addAnalysisModule("vivisect.analysis.ppc.bootstrap")
 
         vw.addAnalysisModule("vivisect.analysis.generic.entrypoints")
         vw.addAnalysisModule("vivisect.analysis.generic.funcentries")
-        vw.addAnalysisModule("vivisect.analysis.generic.pointertables")
+        #vw.addAnalysisModule("vivisect.analysis.generic.pointertables")
         vw.addAnalysisModule("vivisect.analysis.generic.emucode")
 
         vw.addFuncAnalysisModule("vivisect.analysis.generic.codeblocks")
 
-        if arch in ARM_ARCHS:
+        if arch in PPC_ARCHS:
+            vw.addFuncAnalysisModule("vivisect.analysis.ppc.emulation")
+
+        elif arch in ARM_ARCHS:
             vw.addFuncAnalysisModule("vivisect.analysis.arm.emulation")
             vw.addFuncAnalysisModule('vivisect.analysis.arm.renaming')
 
@@ -193,20 +206,49 @@ def addAnalysisModules(vw):
         vw.addFuncAnalysisModule("vivisect.analysis.generic.thunks")
 
     elif fmt in ('ihex', 'srec'): # Intel HEX  or SRECORD (similar) #################
+        if arch in PPC_ARCHS:
+            # potentially tags a new EntryPoint, so must preceed entrypoints
+            vw.addAnalysisModule("vivisect.analysis.ppc.bootstrap")
 
         vw.addAnalysisModule("vivisect.analysis.generic.entrypoints")
         vw.addAnalysisModule("vivisect.analysis.generic.funcentries")
-        vw.addAnalysisModule("vivisect.analysis.generic.pointertables")
+        #vw.addAnalysisModule("vivisect.analysis.generic.pointertables")
         vw.addAnalysisModule("vivisect.analysis.generic.emucode")
 
         vw.addFuncAnalysisModule("vivisect.analysis.generic.codeblocks")
         vw.addFuncAnalysisModule("vivisect.analysis.generic.impapi")
 
-        if arch in ARM_ARCHS:
+        if arch in PPC_ARCHS:
+            vw.addFuncAnalysisModule("vivisect.analysis.ppc.emulation")
+
+        elif arch in ARM_ARCHS:
             vw.addFuncAnalysisModule("vivisect.analysis.arm.emulation")
             vw.addFuncAnalysisModule('vivisect.analysis.arm.renaming')
 
         vw.addFuncAnalysisModule("vivisect.analysis.generic.symswitchcase")
+        vw.addFuncAnalysisModule("vivisect.analysis.generic.thunks")
+
+    elif fmt == 'vbf': # VBF ######################################################
+        if arch in PPC_ARCHS:
+            # potentially tags a new EntryPoint, so must preceed entrypoints
+            vw.addAnalysisModule("vivisect.analysis.ppc.bootstrap")
+
+        vw.addAnalysisModule("vivisect.analysis.generic.entrypoints")
+        vw.addAnalysisModule("vivisect.analysis.generic.funcentries")
+        vw.addAnalysisModule("vivisect.analysis.generic.relocations")
+        #vw.addAnalysisModule("vivisect.analysis.generic.pointertables")
+        vw.addAnalysisModule("vivisect.analysis.generic.emucode")
+
+        vw.addFuncAnalysisModule("vivisect.analysis.generic.codeblocks")
+        vw.addFuncAnalysisModule("vivisect.analysis.generic.impapi")
+
+        if arch in PPC_ARCHS:
+            vw.addFuncAnalysisModule("vivisect.analysis.ppc.emulation")
+
+        elif arch in ARM_ARCHS:
+            vw.addFuncAnalysisModule("vivisect.analysis.arm.emulation")
+            vw.addFuncAnalysisModule('vivisect.analysis.arm.renaming')
+
         vw.addFuncAnalysisModule("vivisect.analysis.generic.thunks")
 
     else:

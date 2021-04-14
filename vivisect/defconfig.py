@@ -24,10 +24,16 @@ defconfig = {
             },
             'ihex':{
                 'arch':'',
+                'bigend':False,
                 'offset':0,
+            },
+            'vbf':{
+                'arch':'',
+                'bigend':False,
             },
             'srec':{
                 'arch':'',
+                'bigend':False,
                 'offset':0,
             },
         },
@@ -41,6 +47,11 @@ defconfig = {
                 'case_failure': 5000,
                 'min_func_instr_size': 10,
             }
+        },
+        'arch':{
+            'ppc':{
+                'options':'spe'
+            },
         },
     },
     'cli':vdb.defconfig.get('cli'), # FIXME make our own...
@@ -74,6 +85,7 @@ docconfig = {
             },
             'ihex':{
                 'arch':'What architecture is the ihex dump?',
+                'bigend':'Is the architecture Big-Endian (MSB)?',
             },
             'srec':{
                 'arch':'What architecture is the srec dump?',
