@@ -426,7 +426,14 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
                 align = sec.sh_addralign
                 sdasz += align-1
                 sdasz = (sdasz // align) * align
-                sdabase = vw.addMemoryMap(None, 7, fname, b'\0' * sdasz)
+
+                # AddMemoryMap returns the size of the new memory map
+                sdasz = vw.addMemoryMap(None, 7, fname, b'\0' * sdasz)
+
+                # It will be the last memory map added
+                sdabase = next(reversed(vw.getMemoryMaps()))[0]
+                logger.debug('creating bss_temp memory @ %#x-%#x', sdabase, sdabase+sdasz)
+
                 vw.addSegment(sdabase, sdasz, '.bss_temp', fname)
                 vw.makeName(sdabase, fname + ".bss_temp")
 
@@ -436,7 +443,14 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
                 align = sec.sh_addralign
                 sdasz += align-1
                 sdasz = (sdasz // align) * align
-                sdabase = vw.addMemoryMap(None, 7, fname, b'\0' * sdasz)
+
+                # AddMemoryMap returns the size of the new memory map
+                sdasz = vw.addMemoryMap(None, 7, fname, b'\0' * sdasz)
+
+                # It will be the last memory map added
+                sdabase = next(reversed(vw.getMemoryMaps()))[0]
+                logger.debug('creating sda_base memory @ %#x-%#x', sdabase, sdabase+sdasz)
+
                 vw.addSegment(sdabase, sdasz, '.sda_base', fname)
                 vw.makeName(sdabase, "_SDA_BASE_")
 
@@ -446,7 +460,14 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
                 align = sec.sh_addralign
                 sda2sz += align-1
                 sda2sz = (sda2sz // align) * align
-                sda2base = vw.addMemoryMap(None, 7, fname, b'\0' * sda2sz)
+
+                # AddMemoryMap returns the size of the new memory map
+                sdasz = vw.addMemoryMap(None, 7, fname, b'\0' * sdasz)
+
+                # It will be the last memory map added
+                sdabase = next(reversed(vw.getMemoryMaps()))[0]
+                logger.debug('creating sda2_base memory @ %#x-%#x', sdabase, sdabase+sdasz)
+
                 vw.addSegment(sdabase, sdasz, '.sda2_base', fname)
                 vw.makeName(sda2base, "_SDA2_BASE_")
 
