@@ -23,16 +23,7 @@ commands:
       - run:
           name: run tests
           command: |
-            python3 -m unittest discover -s vivisect
-            python3 -m unittest discover -s envi
-            python3 -m unittest discover -s vtrace
-            python3 -m unittest discover -s vstruct
-            python3 -m unittest discover -s vqt
-            python3 -m unittest discover -s vdb
-            python3 -m unittest discover -s visgraph
-            python3 -m unittest discover -s PE
-            python3 -m unittest discover -s Elf
-            python3 -m unittest discover -s cobra
+            python3 -m unittest discover
 
   test_steps_python:
     description: "Python test steps"
