@@ -170,6 +170,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
         self.addVaSet('EntryPoints', (('va', VASET_ADDRESS),))
         self.addVaSet('NoReturnCalls', (('va', VASET_ADDRESS),))
         self.addVaSet("Emulation Anomalies", (("va", VASET_ADDRESS), ("Message", VASET_STRING)))
+        self.addVaSet('UnsupportedInstructions', (('va', VASET_ADDRESS), ('mnem', VASET_STRING)))
         self.addVaSet("Bookmarks", (("va", VASET_ADDRESS), ("Bookmark Name", VASET_STRING)))
         self.addVaSet('DynamicBranches', (('va', VASET_ADDRESS), ('opcode', VASET_STRING), ('bflags', VASET_INTEGER)))
         self.addVaSet('SwitchCases', (('va', VASET_ADDRESS), ('setup_va', VASET_ADDRESS), ('Cases', VASET_INTEGER)))
@@ -311,6 +312,12 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
 
         emu = eclass(self, **kwargs)
         emu.setEndian(self.getEndian())
+
+        # PowerPC special case, if there are memory maps defined propagate those
+        # to the new emulator
+        maps = self.getMeta('PpcMemoryMaps')
+        if maps is not None:
+            emu.setVleMaps(maps)
 
         return emu
 
@@ -1030,7 +1037,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
             testva += lsz
 
         if not data:
-            logger.debug("isLikelyPointer(0x%x, 0x%x): %f  (no other locations nearby)", va, ptrva, heur)
+            logger.log(e_common.MIRE, "isLikelyPointer(0x%x, 0x%x): %f  (no other locations nearby)", va, ptrva, heur)
             return (heur >= thresh)
 
         ltypes = [(count, ltype) for ltype, count in data.items()]
@@ -1039,7 +1046,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
         if topdog[1] == LOC_POINTER and topdog[0] > 1:
             heur += 1
 
-        logger.debug("isLikelyPointer(0x%x, 0x%x): %f", va, ptrva, heur)
+        logger.log(e_common.MIRE, "isLikelyPointer(0x%x, 0x%x): %f", va, ptrva, heur)
         return (heur >= thresh)
 
     def detectString(self, va):
@@ -1383,7 +1390,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
             except envi.InvalidInstruction as msg:
                 # FIXME something is just not right about this...
                 bytez = self.readMemory(va, 16)
-                logger.warning("Invalid Instruct Attempt At:", hex(va), e_common.hexify(bytez))
+                logger.warning("Invalid Instruct Attempt At 0x%x: %s", va, e_common.hexify(bytez))
                 raise InvalidLocation(va, msg)
             except Exception as msg:
                 raise InvalidLocation(va, msg)

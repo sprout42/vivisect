@@ -9,6 +9,7 @@ import collections
 import envi
 import envi.bits as e_bits
 import envi.memory as e_mem
+import envi.common as e_common
 import envi.pagelookup as e_page
 import envi.codeflow as e_codeflow
 
@@ -677,12 +678,12 @@ class VivWorkspaceCore(viv_impapi.ImportApi):
 #  setMeta key callbacks
 #
     def _mcb_Architecture(self, name, value):
-        # This is for legacy stuff...
-        self.arch = envi.getArchModule(value)
-        self.psize = self.arch.getPointerSize()
-
         archid = envi.getArchByName(value)
         self.setMemArchitecture(archid)
+
+        # This is for legacy stuff...
+        self.arch = self.imem_archs[envi.ARCH_DEFAULT]
+        self.psize = self.arch.getPointerSize()
 
         # Default calling convention for architecture
         # This will be superceded by Platform and Parser settings
@@ -724,7 +725,7 @@ class VivWorkspaceCore(viv_impapi.ImportApi):
         self.vprint('Workspace was Saved to Server: %s' % wshost)
         self.vprint('(You must close this local copy and work from the server to stay in sync.)')
 
-    def _mcb_PpcVleMaps(self, name, maps):
+    def _mcb_PpcMemoryMaps(self, name, maps):
         ppc_archs = (
             envi.ARCH_PPC_E32,
             envi.ARCH_PPC_E64,
@@ -733,6 +734,7 @@ class VivWorkspaceCore(viv_impapi.ImportApi):
             envi.ARCH_PPCVLE,
             envi.ARCH_PPC_D,
         )
+
         for arch in ppc_archs:
             arch_idx = arch >> 16
             self.imem_archs[arch_idx].setVleMaps(maps)
@@ -767,7 +769,7 @@ def trackDynBranches(cfctx, op, vw, bflags, branches):
     if len(vw.getXrefsFrom(op.va)):
         return
 
-    logger.info("0x%x: Dynamic Branch found:  %s" % (op.va, op))
+    logger.debug("0x%x: Dynamic Branch found:  %s" % (op.va, op))
     vw.setVaSetRow('DynamicBranches', (op.va, repr(op), bflags))
 
 class VivCodeFlowContext(e_codeflow.CodeFlowContext):

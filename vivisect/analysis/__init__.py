@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 ARM_ARCHS = ('arm', 'thumb', 'thumb16')
 PPC_ARCHS = ('ppc', 'vle', 'ppc-embedded', 'ppc-server', 'ppc32-embedded', 'ppc32-server', 'ppc64-embedded', 'ppc64-server', )
+PPC_EMBED_ARCHS = ('vle', 'ppc-embedded', 'ppc32-embedded', 'ppc64-embedded', )
 
 def addAnalysisModules(vw):
 
@@ -179,6 +180,11 @@ def addAnalysisModules(vw):
         vw.addAnalysisModule("vivisect.analysis.generic.pointers")
 
     elif fmt == 'blob': # BLOB ######################################################
+        if arch in PPC_EMBED_ARCHS:
+            # Initial memory maps must be managed manually for bare
+            # metal/embedded PowerPC targets
+            vw.addAnalysisModule("vivisect.analysis.ppc.memorymaps")
+
         if arch in PPC_ARCHS:
             # potentially tags a new EntryPoint, so must preceed entrypoints
             vw.addAnalysisModule("vivisect.analysis.ppc.bootstrap")
@@ -201,6 +207,11 @@ def addAnalysisModules(vw):
         vw.addFuncAnalysisModule("vivisect.analysis.generic.thunks")
 
     elif fmt in ('ihex', 'srec'): # Intel HEX  or SRECORD (similar) #################
+        if arch in PPC_EMBED_ARCHS:
+            # Initial memory maps must be managed manually for bare
+            # metal/embedded PowerPC targets
+            vw.addAnalysisModule("vivisect.analysis.ppc.memorymaps")
+
         if arch in PPC_ARCHS:
             # potentially tags a new EntryPoint, so must preceed entrypoints
             vw.addAnalysisModule("vivisect.analysis.ppc.bootstrap")
@@ -224,6 +235,11 @@ def addAnalysisModules(vw):
         vw.addFuncAnalysisModule("vivisect.analysis.generic.thunks")
 
     elif fmt == 'vbf': # VBF ######################################################
+        if arch in PPC_EMBED_ARCHS:
+            # Initial memory maps must be managed manually for bare
+            # metal/embedded PowerPC targets
+            vw.addAnalysisModule("vivisect.analysis.ppc.memorymaps")
+
         if arch in PPC_ARCHS:
             # potentially tags a new EntryPoint, so must preceed entrypoints
             vw.addAnalysisModule("vivisect.analysis.ppc.bootstrap")

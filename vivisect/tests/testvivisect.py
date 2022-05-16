@@ -715,7 +715,7 @@ class VivisectTest(v_t_utils.VivTest):
         '''
         vw = self.firefox_vw
         self.assertIsNotNone(vw.parsedbin)
-        self.assertEqual(set(['Emulation Anomalies', 'EntryPoints', 'SwitchCases', 'EmucodeFunctions', 'PointersFromFile', 'FuncWrappers', 'CodeFragments', 'DynamicBranches', 'Bookmarks', 'NoReturnCalls', 'DelayImports', 'Library Loads', 'pe:ordinals']), set(vw.getVaSetNames()))
+        self.assertEqual(set(['Emulation Anomalies', 'EntryPoints', 'SwitchCases', 'EmucodeFunctions', 'PointersFromFile', 'FuncWrappers', 'CodeFragments', 'DynamicBranches', 'Bookmarks', 'NoReturnCalls', 'DelayImports', 'Library Loads', 'pe:ordinals', 'UnsupportedInstructions']), set(vw.getVaSetNames()))
 
         self.assertEqual((0x14001fa5a, 6, 10, None), vw.getPrevLocation(0x14001fa60))
         self.assertEqual((0x14001fa5a, 6, 10, None), vw.getPrevLocation(0x14001fa60, adjacent=True))
@@ -1002,7 +1002,8 @@ class VivisectTest(v_t_utils.VivTest):
             (0x08054118, 0x000050, '.data', 'chgrp'),
             (0x08054170, 0x000184, '.bss', 'chgrp'),
             (0x08048000, 0x00a528, 'PHDR0', 'chgrp'),
-            (0x08053f0c, 0x0003e8, 'PHDR1', 'chgrp')
+            (0x08053f0c, 0x0003e8, 'PHDR1', 'chgrp'),
+            (0x08060000, 0x000190, '.bss_temp', 'chgrp'),
         ])
         self.assertEqual(segments, set(vw.getSegments()))
 

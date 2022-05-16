@@ -44,12 +44,12 @@ class VtraceBasicTest(vt_tests.VtraceProcessTest):
     def test_vtrace_exename(self):
         exename = self.trace.getExe()
         self.assertTrue(os.path.isfile(exename))
-        self.assertTrue(exename.lower().find('python') != -1)
+        self.assertTrue(exename.lower().find('python3') != -1)
 
     def test_vtrace_mmaps(self):
         pymapfound = False
         for va, size, perms, fname in self.trace.getMemoryMaps():
-            if fname.lower().find('python') != -1:
+            if fname.lower().find('python3') != -1:
                 pymapfound = True
                 break
         self.assertTrue(pymapfound)
@@ -59,6 +59,6 @@ class VtraceBasicTest(vt_tests.VtraceProcessTest):
 class VtraceBasicExecTest(VtraceBasicTest, vt_tests.VtraceExecTest):
     breakpoints = {
         'windows': 'ntdll.NtTerminateProcess',
-        'linux': 'ld.malloc',
+        'linux': 'python3.PyObject_Malloc',
         'freebsd': 'ld._rtld_thread_init',
     }

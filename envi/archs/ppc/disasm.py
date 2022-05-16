@@ -815,7 +815,7 @@ def form_XFX(disasm, va, ival, opcode, operands, iflags):
         else:
             val = (opvals[2] << 5) | opvals[0]
             regoff = REG_OFFS.get(operands[2][1])
-            oper0 = PpcRegOper(regoff + val, va)    # FIXME: do we want specific DCRN, PMRN, SPRN, TMRN, TBRN operand types?
+            oper0 = PpcRegOper(regoff + val, va)
             oper1 = OPERCLASSES[operands[1][1]](opvals[1], va)
 
         opers = (oper0, oper1)

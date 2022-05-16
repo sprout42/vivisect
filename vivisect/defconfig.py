@@ -39,18 +39,41 @@ defconfig = {
                 'offset':0,
             },
         },
+
         'analysis':{
             'pointertables':{
                 'table_min_len':4,
             },
+            'stack':{
+                'base': 0x40078000,
+                'mask': 0xFFFF8000,
+                'top': 0x40080000,
+                'pointer': 0x4007ffe0,
         },
-        'arch':{
-            'ppc':{
-                'options':'spe'
+            'taint':{
+                'base': 0xbfb0000f,
+                'byte': 'a',
+                'offset': 0x1000,
+                'mask': 0xffffe000,
             },
         },
+
         'remote':{
             'wait_for_plat_arch': 10,
+        },
+
+        'arch':{
+            'ppc':{
+                'options':'spe',
+                'bootstrap':{
+                    'rchwaddrs':[
+                        0x0000, 0x4000, 0x10000, 0x1C000, 0x20000, 0x30000,
+                        0x800000
+                    ],
+                },
+                'findvlepages':True,
+                'mmu':[],
+            },
         },
     },
     'cli':vdb.defconfig.get('cli'), # FIXME make our own...
@@ -99,10 +122,30 @@ docconfig = {
             'pointertables':{
                 'table_min_len':'How many pointers must be in a row to make a table?',
             },
+            'stack':{
+                'base':'Stack base address',
+                'mask':'Stack mask',
+                'top':'Stack top address',
+                'pointer':'Stack pointer',
         },
-        'remote':{
-            'wait_for_plat_arch':'How many secs to wait for the remote server/workspace to provide a Platform or Architecture before moving on.'
-        }
+            'taint':{
+                'base':'Taint base address',
+                'byte':'Taint byte value',
+                'offset':'Taint VA offset',
+                'mask':'Taint mask',
+            },
+        },
+
+        'arch':{
+            'ppc':{
+                'options':'PowerPC processor features to enable',
+                'bootstrap':{
+                    'rchwaddrs':'A list of addresses to look for at for the reset-control half word (RCHW) used for PowerPC boot target identification',
+                },
+                'findvlepages':'Flag to search and automatically add VLE memory map pages from MMU instructions',
+                'mmu':'A list of [<address>, <size>] values that indicate memory segments where PowerPC VLE instructions can be found',
+            },
+        },
 
     },
 
