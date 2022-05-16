@@ -20,7 +20,7 @@ def firethread(func):
     '''
     def dothread(*args, **kwargs):
         thr = threading.Thread(target=func, args=args, kwargs=kwargs)
-        thr.setDaemon(True)
+        thr.daemon = True
         thr.start()
         return thr
     functools.update_wrapper(dothread, func)
@@ -45,7 +45,7 @@ def maintthread(stime):
 
         def dothread(*args, **kwargs):
             thr = threading.Thread(target=maintloop, args=args, kwargs=kwargs)
-            thr.setDaemon(True)
+            thr.daemon = True
             thr.start()
 
         functools.update_wrapper(dothread, func)

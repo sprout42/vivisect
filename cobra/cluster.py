@@ -218,7 +218,7 @@ class ClusterServer:
 
         # Fire the timeout monitor thread...
         thr = threading.Thread(target=self.timerThread)
-        thr.setDaemon(True)
+        thr.daemon = True
         thr.start()
 
     def addClusterQueen(self, queenhost):
@@ -259,11 +259,11 @@ class ClusterServer:
         uri = 'cobra://%s:%d/%s' % (host, port, cname)
         return uri
 
-    def getServerInfo(self): 
+    def getServerInfo(self):
         '''
         Return server host/port information
         '''
-        return cobra.getLocalInfo() 
+        return cobra.getLocalInfo()
 
     def getServerObjectUri(self, objname):
         '''
@@ -322,7 +322,7 @@ class ClusterServer:
 
         if firethread:
             thr = threading.Thread(target=self.runServer)
-            thr.setDaemon(True)
+            thr.daemon = True
             thr.start()
 
         else:
@@ -348,7 +348,7 @@ class ClusterServer:
 
     def addWork(self, work):
         """
-        Add a work object to the ClusterServer.  This 
+        Add a work object to the ClusterServer.  This
         """
         if not isinstance(work, ClusterWork):
             raise Exception("%s is not a ClusterWork extension!")
@@ -438,7 +438,7 @@ class ClusterServer:
         if self.callback:
             for w in qlist:
                 self.callback.workCanceled(self, w)
-        
+
     def cancelWork(self, workid):
         """
         Cancel a work unit by ID.
@@ -510,7 +510,7 @@ class ClusterClient:
         Runs handing out work up to maxwidth until self.go == False.
         """
         while self.go:
-            
+
             buf, sockaddr = self.sock.recvfrom(4096)
             if self.width >= self.maxwidth:
                 continue
@@ -544,7 +544,7 @@ class ClusterClient:
 
     def fireRunner(self, uri):
         thr = threading.Thread(target=self.threadForker, args=(uri,))
-        thr.setDaemon(True)
+        thr.daemon = True
         thr.start()
 
     def threadForker(self, uri):
@@ -615,7 +615,7 @@ def runAndWaitWork(server, work):
 
     work.touch()
     thr = threading.Thread(target=workThread, args=(server, work))
-    thr.setDaemon(True)
+    thr.daemon = True
     thr.start()
 
     # Wait around for done or timeout

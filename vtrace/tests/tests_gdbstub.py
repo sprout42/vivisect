@@ -197,7 +197,7 @@ portadd = itertools.count()
 #
 #        # Start the server
 #        self.server_thread = threading.Thread(target=self.server.runServer)
-#        self.server_thread.setDaemon(True)
+#        self.server_thread.daemon = True
 #        self.server_thread.start()
 #
 #        time.sleep(1)

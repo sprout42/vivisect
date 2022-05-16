@@ -651,7 +651,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
         self.server.vprint('%s connection complete!' % uname)
 
         thr = threading.Thread(target=self._clientThread)
-        thr.setDaemon(True)
+        thr.daemon = True
         thr.start()
 
         timeout = self.config.viv.remote.wait_for_plat_arch
@@ -1766,7 +1766,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
 
         If basename is provided, that name is used to create the Vivisect name for the thunk.
         If basename is not provided, thname is chopped and used for the Vivisect name.
-        This difference allows, for example, the Elf loader to make PLT functions named "plt_<foo>" 
+        This difference allows, for example, the Elf loader to make PLT functions named "plt_<foo>"
         but still use the official thunk name "*.<foo>".  This thunk name is used to look up
         the import api.  These "*.<foo>" thunk names are also used in the addNoReturnApi().
 
@@ -3187,7 +3187,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
         if uuid in self.leaders:
             user, fname = self.leaders.get(uuid)
             return user, fname
-            
+
         return None, None
 
     def getLeaderSessions(self):

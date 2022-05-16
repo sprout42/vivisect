@@ -479,7 +479,7 @@ class TracerBase(vtrace.Notifier):
             self.runAgain()
 
         # For thread exits, make sure the tid
-        # isn't in 
+        # isn't in
         if event == vtrace.NOTIFY_EXIT_THREAD:
             tid = self.getMeta("ThreadId")
             self.sus_threads.pop(tid, None)
@@ -878,7 +878,7 @@ class TracerBase(vtrace.Notifier):
 
 def threadwrap(func):
     def trfunc(self, *args, **kwargs):
-        if threading.currentThread().__class__ == TracerThread:
+        if threading.current_thread().__class__ == TracerThread:
             return func(self, *args, **kwargs)
         # Proxy the call through a single thread
         q = queue.Queue()
@@ -906,7 +906,7 @@ class TracerThread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.queue = queue.Queue()
-        self.setDaemon(True)
+        self.daemon = True
         self.start()
 
     def run(self):
