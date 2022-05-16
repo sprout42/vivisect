@@ -69,7 +69,7 @@ class VQMemoryCanvas(e_memcanvas.MemoryCanvas, QWebEngineView):
         self.setAcceptDrops(False)
 
     def forceSync(self):
-        cthr = QtCore.QThread.currentThread()
+        cthr = QtCore.QThread.current_thread()
         loop = QtCore.QThread.eventDispatcher(cthr)
         loop.processEvents(QtCore.QEventLoop.ExcludeUserInputEvents | QtCore.QEventLoop.ExcludeSocketNotifiers | QtCore.QEventLoop.WaitForMoreEvents)
 

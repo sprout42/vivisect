@@ -57,7 +57,7 @@ class VdbLookup(UserDict):
 class ScriptThread(threading.Thread):
     def __init__(self, cobj, locals):
         threading.Thread.__init__(self)
-        self.setDaemon(True)
+        self.daemon = True
         self.cobj = cobj
         self.locals = locals
 
@@ -1073,10 +1073,10 @@ class Vdb(e_cli.EnviMutableCli, v_notif.Notifier, v_util.TraceManager):
             elif opt == '-Q':
                 quiet = True
 
-        if ( count is None 
+        if ( count is None
              and taddr is None
              and until is None
-             and toret == False 
+             and toret == False
              and tobrn == False):
             count = 1
 

@@ -191,7 +191,7 @@ class CobraEventCore:
         '''
         if firethread:
             thr = threading.Thread(target=self.addEventCallback, args=(callback, qmax, False))
-            thr.setDaemon(True)
+            thr.daemon = True
             thr.start()
             return
 
@@ -227,7 +227,7 @@ class CobraEventCore:
         self._ce_ecastsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
         thr = threading.Thread(target=self._runSocketListener)
-        thr.setDaemon(True)
+        thr.daemon = True
         thr.start()
 
     def _runSocketListener(self):
