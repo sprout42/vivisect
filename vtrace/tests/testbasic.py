@@ -29,7 +29,6 @@ class VtraceBasicTest(vt_tests.VtraceProcessTest):
     def test_vtrace_breakpoint(self):
         plat = self.trace.getMeta('Platform')
         symname = self.breakpoints.get(plat)
-        print(symname)
         if symname is None:
             raise unittest.SkipTest('no platform breakpoint: %s' % plat)
 
