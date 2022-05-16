@@ -123,8 +123,8 @@ class WorkspaceEmulator:
         self.taints = {}
         base = int(kwargs.get('taintbase', 0x4156000F))
         self.taintva = itertools.count(base, 0x2000)
-        self.taintoffset = 0x1000
-        self.taintmask = 0xffffe000
+        self.taintoffset = int(kwargs.get('taintoffset', 0x1000))
+        self.taintmask = int(kwargs.get('taintmask', 0xffffe000))
         self.taintbyte = kwargs.get('taintbyte', b'a')
         self.taintrepr = {}
 
@@ -225,6 +225,8 @@ class WorkspaceEmulator:
 
             # no need to do tainting here, since SP will always be in the
             #   first map
+
+            self.setStackCounter(self.stack_pointer)
 
     def stopEmu(self):
         '''
@@ -530,8 +532,10 @@ class WorkspaceEmulator:
                 except envi.BadOpcode:
                     break
                 except envi.UnsupportedInstruction as e:
+                    vw.setVaSetRow("UnsupportedInstructions", (op.va, op.mnem))
+                    vw.getVaSet("UnsupportedInstructions")
                     if self.strictops:
-                        logger.debug('runFunction failed: unsupported instruction: 0x%08x %s', e.op.va, e.op.mnem)
+                        logger.info('runFunction failed: unsupported instruction: 0x%08x %s', e.op.va, e.op.mnem)
                         break
                     else:
                         logger.debug('runFunction continuing after unsupported instruction: 0x%08x %s', e.op.va, e.op.mnem)

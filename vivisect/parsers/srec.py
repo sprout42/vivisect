@@ -6,14 +6,7 @@ from vivisect.const import *
 import logging
 logger = logging.getLogger(__name__)
 
-
-archcalls = {
-    'i386': 'cdecl',
-    'amd64': 'sysvamd64call',
-    'arm': 'armcall',
-    'thumb': 'armcall',
-    'thumb16': 'armcall',
-}
+from vivisect.const import *
 
 
 def parseFile(vw, filename, baseaddr=None):
@@ -22,7 +15,7 @@ def parseFile(vw, filename, baseaddr=None):
     if not arch:
         raise Exception('SRec loader *requires* arch option (-O viv.parsers.srec.arch=\\"<archname>\\")')
 
-    bigend = vw.config.viv.parsers.ihex.bigend
+    bigend = vw.config.viv.parsers.srec.bigend
 
     envi.getArchModule(arch)
 
@@ -39,20 +32,20 @@ def parseFile(vw, filename, baseaddr=None):
     vw.config.viv.parsers.srec.offset = 0
 
     srec = v_srec.SRecFile()
-    with open(filename, 'rb') as f:
+    with open(filename, 'r') as f:
         shdr = f.read(offset)
         sbytes = f.read()
         if offset:
             logger.debug('skipping %d bytes: %r', offset, repr(shdr)[:300])
 
-        fname = vw.addFile(filename, 0, v_parsers.md5Bytes(shdr + sbytes))
-        vw.setFileMeta(fname, 'sha256', v_parsers.sha256Bytes(shdr + sbytes))
+        fname = vw.addFile(filename, 0, v_parsers.md5Bytes(shdr.encode() + sbytes.encode()))
+        vw.setFileMeta(fname, 'sha256', v_parsers.sha256Bytes(shdr.encode() + sbytes.encode()))
 
         srec.vsParse(sbytes)
 
         # calculate SREC-specific hash - only the fields copied into memory
         srdata = srec.vsEmit()
-        vw.setFileMeta(fname, 'sha256_srec', v_parsers.sha256Bytes(srdata.encode('utf-8')))
+        vw.setFileMeta(fname, 'sha256_srec', v_parsers.sha256Bytes(srdata))
 
         for eva in srec.getEntryPoints():
             if eva is not None:
