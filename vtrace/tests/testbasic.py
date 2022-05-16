@@ -29,6 +29,7 @@ class VtraceBasicTest(vt_tests.VtraceProcessTest):
     def test_vtrace_breakpoint(self):
         plat = self.trace.getMeta('Platform')
         symname = self.breakpoints.get(plat)
+        print(symname)
         if symname is None:
             raise unittest.SkipTest('no platform breakpoint: %s' % plat)
 
@@ -55,10 +56,12 @@ class VtraceBasicTest(vt_tests.VtraceProcessTest):
         self.assertTrue(pymapfound)
 
 
-# All of the above "simple" tests should also work in the "exec" case
+# All of the above "simple" tests should also work in the "exec" case, but we
+# need to change the breakpoint symbols because the different launch method
+# changes the available symbols for some platforms
 class VtraceBasicExecTest(VtraceBasicTest, vt_tests.VtraceExecTest):
     breakpoints = {
         'windows': 'ntdll.NtTerminateProcess',
-        'linux': 'python3.PyObject_Malloc',
+        'linux': 'ld._dl_allocate_tls_init',
         'freebsd': 'ld._rtld_thread_init',
     }
