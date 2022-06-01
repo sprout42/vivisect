@@ -1,4 +1,5 @@
 import time
+import weakref
 import threading
 import functools
 import itertools
@@ -170,7 +171,7 @@ class VQVivFuncgraphView(vq_hotkey.HotKeyMixin, e_qt_memory.EnviNavMixin, QWidge
     viewidx = itertools.count()
 
     def __init__(self, vw, vwqgui):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.fva = None
         self.graph = None
         self.nodes = []

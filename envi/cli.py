@@ -126,7 +126,7 @@ class VOptionParser(optparse.OptionParser):
     parse of arguments.  normally optionparser sends it to stderr.
     '''
     def __init__(self, *args, **kwargs):
-        optparse.OptionParser.__init__(self, *args, add_help_option=False, **kwargs)
+        super().__init__(*args, add_help_option=False, **kwargs)
 
     def error(self, msg):
         raise Exception(msg)
@@ -142,7 +142,7 @@ class EnviCli(Cmd):
         self.scriptpaths = []
         self.addScriptPathEnvVar('ENVI_SCRIPT_PATH')
 
-        Cmd.__init__(self, stdout=self)
+        super().__init__(stdout=self)
 
         for name in dir(self):
             if name.startswith('do_'):
@@ -166,6 +166,20 @@ class EnviCli(Cmd):
         self.canvas = e_canvas.MemoryCanvas(memobj, syms=symobj)
 
         self.aliases = {} # For *runtime* aliases only!
+
+    def __del__(self):
+        self.do_quit(None)
+        del self.shutdown
+
+        del self.basecmds
+        del self.emptymeth
+        del self.scriptpaths
+        del self.extcmds
+        del self.extsubsys
+
+        # Ensure the circular reference to self created by the Cmd() class
+        # initialization is cleaned up
+        del self.stdout
 
     def addCmdAlias(self, alias, cmd, persist=False):
         '''

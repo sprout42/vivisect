@@ -1,5 +1,6 @@
 import os
 import sys
+import weakref
 
 import vstruct.qt as vs_qt
 import envi.expression as e_expr
@@ -44,7 +45,7 @@ class VQVivMainWindow(viv_base.VivEventDist, vq_app.VQMainCmdWindow):
     vivMemColorSignal = QtCore.pyqtSignal(dict, name='vivMemColorSignal')
 
     def __init__(self, vw):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         vw._viv_gui = self
         # DEV: hijack the workspace's vprint so that they get routed to the UI canvas
         # and not out to the stdout

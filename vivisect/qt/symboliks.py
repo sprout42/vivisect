@@ -1,3 +1,4 @@
+import weakref
 import itertools
 import traceback
 
@@ -56,7 +57,7 @@ class VivSymbolikFuncPane(e_q_memory.EnviNavMixin, vq_save.SaveableWidget, QWidg
     viewidx = itertools.count()
 
     def __init__(self, vw, parent=None):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.fva = None
         self.vwgui = vw.getVivGui()
 
@@ -152,7 +153,7 @@ class VivSymbolikFuncPane(e_q_memory.EnviNavMixin, vq_save.SaveableWidget, QWidg
                 raise Exception('QTSymboliks: Invalid Address: 0x%.8x' % va)
 
             # check the constraints
-            # FIXME: add ability to page through more than just the first 100 paths.  requires 
+            # FIXME: add ability to page through more than just the first 100 paths.  requires
             #   storing the codegraph and codepaths
             codepaths = None
             codegraph = self.symctx.getSymbolikGraph(self.fva)

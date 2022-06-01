@@ -69,6 +69,12 @@ class IMemory:
 
         self.bigend = envi.ENDIAN_LSB
 
+    def __del__(self):
+        for i, arch in enumerate(self.imem_archs):
+            self.imem_archs[i] = None
+            del arch
+        del self.imem_archs
+
     def getEndian(self):
         '''
         Returns the Endianness setting
@@ -431,6 +437,12 @@ class MemoryObject(IMemory):
         self._map_defs = []
         self._supervisor = False
 
+    def __del__(self):
+        for midx, mdata in enumerate(self._map_defs):
+            self._map_defs[midx] = None
+            del mdata
+        del self._map_defs
+
     def allocateMemory(self, size, perms=MM_RWX, suggestaddr=0x1000, name='', fill=b'\0', align=None):
         '''
         Find a free block of memory (no maps exist) and allocate a new map
@@ -442,10 +454,10 @@ class MemoryObject(IMemory):
 
     def findFreeMemoryBlock(self, size, suggestaddr=0x1000, MIN_MEM_ADDR = 0x1000):
         '''
-        Find a block of memory in the address-space of the correct size which 
+        Find a block of memory in the address-space of the correct size which
         doesn't overlap any existing maps.  Attempts to offer the map starting
         at suggestaddr.  If not possible, scans the rest of the address-space
-        until it finds a suitable location or loops twice(ie. no gap large 
+        until it finds a suitable location or loops twice(ie. no gap large
         enough to accommodate a map of this size exists.
 
         DOES NOT ALLOCATE.  see allocateMemory() if you want the map created

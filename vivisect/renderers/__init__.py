@@ -2,6 +2,7 @@
 A package for any of the vivisect workspace renderers.
 """
 import string
+import weakref
 import logging
 import urllib.parse
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class WorkspaceRenderer(e_canvas.MemoryRenderer):
     def __init__(self, vw):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
 
         # Some tweakables...
         self._show_segment = True

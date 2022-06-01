@@ -1,3 +1,5 @@
+import weakref
+
 from PyQt5.QtWidgets import QWidget, QTextEdit, QDialogButtonBox, QMessageBox
 
 from vqt.basics import *
@@ -20,7 +22,7 @@ class UserStructEditor(QWidget):
         If "name" is none, we assume they are creating one.
         '''
         QWidget.__init__(self, parent=parent)
-        self._v_vw = vw
+        self._v_vw = weakref.proxy(vw)
         self._v_sname = name
         self._v_changed = True
 

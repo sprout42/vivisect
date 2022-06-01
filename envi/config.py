@@ -67,6 +67,11 @@ class EnviConfig:
         if docs is not None:
             self.setDocsPrimitive(docs)
 
+    def __del__(self):
+        # Ensure that all cfgsubsys config objects are also deleted
+        for name in list(self.cfgsubsys):
+            del self.cfgsubsys[name]
+
     def getOptionDoc(self, optname):
         '''
         Retrieve docs about the given option if present.

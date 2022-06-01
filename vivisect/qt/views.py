@@ -1,3 +1,5 @@
+import weakref
+
 import vqt.tree as vq_tree
 import vivisect.base as viv_base
 import envi.qt.memory as e_q_memory
@@ -21,7 +23,7 @@ class VQVivTreeView(vq_tree.VQTreeView, viv_base.VivEventCore):
         vq_tree.VQTreeView.__init__(self, parent=vwqgui, **kwargs)
         viv_base.VivEventCore.__init__(self, vw)
 
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.vwqgui = vwqgui
         self._viv_va_nodes = {}
 

@@ -1,4 +1,5 @@
 import logging
+import weakref
 
 from PyQt5 import Qt
 from PyQt5.QtWidgets import *
@@ -31,7 +32,7 @@ class VivCanvasBase(vq_hotkey.HotKeyMixin, e_mem_canvas.VQMemoryCanvas):
         e_mem_canvas.VQMemoryCanvas.__init__(self, *args, **kwargs)
         vq_hotkey.HotKeyMixin.__init__(self)
 
-        self.vw = self.mem
+        self.vw = weakref.proxy(self.mem)
         self._last_sname = None
 
         self.addHotKey('c', 'viv:make:code')
@@ -380,7 +381,7 @@ class VQVivMemoryCanvas(VivCanvasBase):
 class VQVivMemoryView(e_mem_qt.VQMemoryWindow, viv_base.VivEventCore):
 
     def __init__(self, vw, vwqgui):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.vwqgui = vwqgui
 
         self._leading = False
@@ -442,7 +443,7 @@ class VQVivMemoryView(e_mem_qt.VQMemoryWindow, viv_base.VivEventCore):
             if user is None:
                 user = e_config.getusername()
             self.vw.modifyLeaderSession(self.uuid, user, self.mwname)
-        
+
     def getExprTitle(self):
         va = -1
         title = str(self.addr_entry.text())
@@ -538,7 +539,7 @@ class VQVivMemoryView(e_mem_qt.VQMemoryWindow, viv_base.VivEventCore):
         Add Action to RendToolsMenu (Opts/Follow) for a given session
         '''
         logger.info("_rtmModLeaderSession(%r, %r, %r)", uuid, user, fname)
-        
+
         action = self._rtmGetActionByUUID(uuid)
         action.setText('%s - %s' % (user, fname))
         if self._following == uuid:

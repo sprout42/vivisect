@@ -1,4 +1,5 @@
 import struct
+import weakref
 import itertools
 
 import envi
@@ -114,7 +115,7 @@ class WorkspaceEmulator:
                     doing can result in undesirable effects (such as infinite recursion when trying to repr
                     taint values), so change this value with care.
         '''
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         # Set down below in runFunction
         self.funcva = None
         self.emustop = False
