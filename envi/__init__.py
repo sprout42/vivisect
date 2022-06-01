@@ -562,6 +562,10 @@ class Emulator(e_reg.RegisterContext, e_mem.MemoryObject):
         self.op_methods = {}
         self._populateOpMethods()
 
+    def __del__(self):
+        if hasattr(self, 'metadata'):
+            del self.metadata
+
     def _populateOpMethods(self):
         for name in dir(self):
             if name.startswith("i_"):

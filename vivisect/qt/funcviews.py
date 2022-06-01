@@ -1,6 +1,8 @@
 '''
 Views related to information about a given function.
 '''
+import weakref
+
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QMenu, QWidget
 
@@ -19,7 +21,7 @@ class FunctionBlocksView(BasicTreeView):
     _sig_BlockSelected = QtCore.pyqtSignal(object)
 
     def __init__(self, vw, parent=None):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
 
         BasicTreeView.__init__(self, parent=parent)
         self.setModel(FuncBlockModel())
@@ -65,7 +67,7 @@ class FunctionBlocksView(BasicTreeView):
 class FuncCallsView(QWidget):
 
     def __init__(self, vw, parent=None):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         QWidget.__init__(self, parent=parent)
 
         self.graphview = vg_qgraphtree.QGraphTreeView(None, (), parent=self)

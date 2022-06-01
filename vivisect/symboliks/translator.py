@@ -1,3 +1,5 @@
+import weakref
+
 from vivisect.symboliks.common import *
 from vivisect.symboliks.effects import *
 
@@ -8,7 +10,7 @@ class SymbolikTranslator:
     '''
 
     def __init__(self, vw):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self._eff_log = []
         self._con_log = []
         self._op_methods = {}

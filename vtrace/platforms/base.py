@@ -881,7 +881,7 @@ def threadwrap(func):
         if threading.current_thread().__class__ == TracerThread:
             return func(self, *args, **kwargs)
         # Proxy the call through a single thread
-        q = queue.Queue()
+        q = queue.SimpleQueue()
         # FIXME change calling convention!
         args = (self, ) + args
         self.thread.queue.put((func, args, kwargs, q))
@@ -905,7 +905,7 @@ class TracerThread(threading.Thread):
     """
     def __init__(self):
         threading.Thread.__init__(self)
-        self.queue = queue.Queue()
+        self.queue = queue.SimpleQueue()
         self.daemon = True
         self.start()
 

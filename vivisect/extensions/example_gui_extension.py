@@ -9,6 +9,8 @@ form of a .py file or a directory with a __init__.py
 file.  Either way, the module will be loaded into
 memory and the "vivExtension" function called.
 '''
+import weakref
+
 from PyQt5.QtWidgets import QToolBar, QLabel, QPushButton, QTextEdit, QWidget, QInputDialog
 from PyQt5 import QtCore
 
@@ -18,7 +20,7 @@ from vqt.common import ACT
 
 class ExampleToolbar(QToolBar):
     def __init__(self, vw, vwgui):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.vwgui = vwgui
 
         QToolBar.__init__(self, parent=vwgui)
@@ -34,7 +36,7 @@ class ExampleToolbar(QToolBar):
 
 class ExampleWindow(QWidget):
     def __init__(self, vw, vwgui):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.vwgui = vwgui
 
         QWidget.__init__(self, parent=vwgui)
@@ -72,11 +74,11 @@ def ctxMenuHook(vw, va, expr, menu, parent, nav):
 class Crap:
     '''
     This is a helpful class for storing vw and vwgui and "doing the thing"
-    Currently Vivisect's Hot Keys are tied to the many gui widgets, so 
+    Currently Vivisect's Hot Keys are tied to the many gui widgets, so
     vw and vwgui are not available when the "thing" is called.
     '''
     def __init__(self, vw, vwgui):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.vwgui = vwgui
 
     def thing(self):

@@ -1,5 +1,6 @@
 import queue
 import base64
+import weakref
 import logging
 import traceback
 import threading
@@ -40,7 +41,7 @@ class VivEventCore(object):
     '''
 
     def __init__(self, vw=None, **kwargs):
-        self._ve_vw = vw
+        self._ve_vw = weakref.proxy(vw)
         self._ve_ehand = [None for x in range(VWE_MAX)]
         self._ve_thand = [None for x in range(VTE_MAX)]
         self._ve_lock = threading.Lock()

@@ -1,3 +1,5 @@
+import weakref
+
 import vivisect.exc as viv_exc
 
 
@@ -7,7 +9,7 @@ class VivColorMap:
     '''
 
     def __init__(self, vw):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.cmap = {}
 
     def colorVa(self, va, color):

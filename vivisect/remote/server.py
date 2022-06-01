@@ -3,6 +3,7 @@ import sys
 import cobra
 import queue
 import logging
+import weakref
 import argparse
 import threading
 
@@ -38,12 +39,12 @@ class VivServerClient:
     talk to the server...
     '''
     def __init__(self, vw, server, wsname):
-        self.vw = vw
+        self.vw = weakref.proxy(vw)
         self.chan = None
         self.wsname = wsname
         self.server = server
         self.eoffset = 0
-        self.q = queue.Queue()  # The actual local Q we deliver to
+        self.q = queue.SimpleQueue()  # The actual local Q we deliver to
 
     @e_threads.firethread
     def _eatServerEvents(self):

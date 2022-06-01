@@ -1,6 +1,7 @@
 '''
 A module to contain code flow analysis for envi opcode objects...
 '''
+import weakref
 import logging
 import collections
 
@@ -37,7 +38,7 @@ class CodeFlowContext(object):
 
         self._funcs = {}
         self._fcalls = {}
-        self._mem = mem
+        self._mem = weakref.proxy(mem)
         self._cf_noret = {}     # noret funcs
         self._cf_noflow = {}    # va's to stop on
 
@@ -233,7 +234,7 @@ class CodeFlowContext(object):
                                 # descend into functions, but make sure we don't descend into
                                 # recursive functions
                                 if bva in self._cf_blocks:
-                                    logger.debug("not recursing to function 0x%x (at 0x%x): it's already in analysis call path (ie. it called *this* func)", 
+                                    logger.debug("not recursing to function 0x%x (at 0x%x): it's already in analysis call path (ie. it called *this* func)",
                                             bva, va)
                                     logger.debug("call path: \t" + ", ".join([hex(x) for x in self._cf_blocks]))
                                     # the function that we want to make prodcedural
