@@ -12,7 +12,6 @@ The module's vivExtension function takes a vivisect workspace
 
 import os
 import sys
-import weakref
 import importlib
 import traceback
 
@@ -50,7 +49,7 @@ def loadExtensions(vw, vwgui):
                 # Build code objects from the module files
                 spec = importlib.util.spec_from_file_location(fname, modpath)
                 module = importlib.util.module_from_spec(spec)
-                module.vw = weakref.proxy(vw)
+                module.vw = vw
                 spec.loader.exec_module(module)
 
                 module.vivExtension(vw, vwgui)

@@ -1,5 +1,3 @@
-import weakref
-
 import envi
 import envi.exc as e_exc
 import envi.bits as e_bits
@@ -62,7 +60,7 @@ class AnalysisMonitor(EmulationMonitor):
     '''
     def __init__(self, vw, fva):
         EmulationMonitor.__init__(self)
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.fva = fva
         self.onceop = {}
         self.stackmax = 0

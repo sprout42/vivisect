@@ -1,5 +1,4 @@
 import logging
-import weakref
 
 from PyQt5 import Qt
 from PyQt5.QtWidgets import *
@@ -32,7 +31,7 @@ class VivCanvasBase(vq_hotkey.HotKeyMixin, e_mem_canvas.VQMemoryCanvas):
         e_mem_canvas.VQMemoryCanvas.__init__(self, *args, **kwargs)
         vq_hotkey.HotKeyMixin.__init__(self)
 
-        self.vw = weakref.proxy(self.mem)
+        self.vw = self.mem
         self._last_sname = None
 
         self.addHotKey('c', 'viv:make:code')
@@ -381,7 +380,7 @@ class VQVivMemoryCanvas(VivCanvasBase):
 class VQVivMemoryView(e_mem_qt.VQMemoryWindow, viv_base.VivEventCore):
 
     def __init__(self, vw, vwqgui):
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.vwqgui = vwqgui
 
         self._leading = False

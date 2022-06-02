@@ -10,7 +10,6 @@ import sys
 import time
 import queue
 import string
-import weakref
 import hashlib
 import logging
 import itertools
@@ -3326,7 +3325,7 @@ class VivWorkspace(e_mem.MemoryObject, viv_base.VivWorkspaceCore):
 class VivFileSymbol(e_resolv.FileSymbol):
     # A namespace tracker thingie...
     def __init__(self, vw, fname, base, size, width=4):
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         e_resolv.FileSymbol.__init__(self, fname, base, size, width)
 
     def getSymByName(self, name):

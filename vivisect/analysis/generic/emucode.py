@@ -4,8 +4,6 @@ if they are code by emulation behaviorial analysis.
 
 (This module works best very late in the analysis passes)
 """
-import weakref
-
 import envi
 import vivisect
 import vivisect.exc as v_exc
@@ -23,7 +21,7 @@ class watcher(viv_imp_monitor.EmulationMonitor):
 
     def __init__(self, vw, tryva):
         viv_imp_monitor.EmulationMonitor.__init__(self)
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.tryva = tryva
         self.hasret = False
         self.mndist = {}
