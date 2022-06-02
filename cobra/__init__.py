@@ -20,7 +20,7 @@ import logging
 import traceback
 import urllib.parse
 
-from threading import current_thread, Thread, RLock, Timer, Lock
+from threading import currentThread, Thread, RLock, Timer, Lock
 from socketserver import ThreadingTCPServer, BaseRequestHandler
 try:
     import msgpack
@@ -106,34 +106,34 @@ def getCallerInfo():
     by a remote caller.  It will return a tuple of host,port for the
     other side of the connection... use wisely ;)
     """
-    return getattr(current_thread(), "_cobra_caller_info", None)
+    return getattr(currentThread(), "_cobra_caller_info", None)
 
 def getLocalInfo():
     """
     This function returns the local host,port combination being
     used in the socket servicing the current request
     """
-    return getattr(current_thread(), "_cobra_local_info", None)
+    return getattr(currentThread(), "_cobra_local_info", None)
 
 def getUserInfo():
     '''
     Get the cobra authenticated username of the current user
     ( or None if no user was authenticated )
     '''
-    return getattr(current_thread(), "_cobra_authuser", None)
+    return getattr(currentThread(), "_cobra_authuser", None)
 
 def setCallerInfo(callerinfo):
     """
     This is necessary because of crazy python method call
     name munging for thread attributes ;)
     """
-    current_thread()._cobra_caller_info = callerinfo
+    currentThread()._cobra_caller_info = callerinfo
 
 def setUserInfo(authuser):
-    current_thread()._cobra_authuser = authuser
+    currentThread()._cobra_authuser = authuser
 
 def setLocalInfo(localinfo):
-    current_thread()._cobra_local_info = localinfo
+    currentThread()._cobra_local_info = localinfo
 
 def nocobra(f):
     f.__no_cobra__ = True
@@ -1015,7 +1015,7 @@ class CobraProxy:
             sock = self._cobra_sockpool.get()
         else:
             if not thr: # if thread isn't specified, use the current thread
-                thr = current_thread()
+                thr = currentThread()
 
             tsocks = getattr(thr, 'cobrasocks', None)
             if tsocks is None:
