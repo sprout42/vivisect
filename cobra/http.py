@@ -17,7 +17,7 @@ import BaseHTTPServer
 
 import cobra as c_cobra
 
-from threading import current_thread,Thread,RLock
+from threading import currentThread,Thread,RLock
 from SocketServer import ThreadingTCPServer
 
 logger = logging.getLogger(__name__)
@@ -409,7 +409,7 @@ class CobraHttpProxy:
         self._cobra_methods = data
 
     def _cobra_http_getsock(self):
-        thr = current_thread()
+        thr = currentThread()
         tsocks = getattr(thr, 'cobrahttpsocks', None)
         if tsocks is None:
             tsocks = {}

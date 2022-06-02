@@ -878,7 +878,7 @@ class TracerBase(vtrace.Notifier):
 
 def threadwrap(func):
     def trfunc(self, *args, **kwargs):
-        if threading.current_thread().__class__ == TracerThread:
+        if threading.currentThread().__class__ == TracerThread:
             return func(self, *args, **kwargs)
         # Proxy the call through a single thread
         q = queue.Queue()

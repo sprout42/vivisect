@@ -457,18 +457,18 @@ class VQVivFuncgraphView(vq_hotkey.HotKeyMixin, e_qt_memory.EnviNavMixin, QWidge
         # debounce logic
         if self._renderWaiting:
             # if we are already rendering... and another thing is waiting
-            #logger.debug('(%r) someone is already waiting... returning', threading.current_thread())
+            #logger.debug('(%r) someone is already waiting... returning', threading.currentThread())
             return
 
         while self._rendering:
-            #logger.debug('(%r) waiting for render to complete...', threading.current_thread())
+            #logger.debug('(%r) waiting for render to complete...', threading.currentThread())
             self._renderWaiting = True
             time.sleep(.1)
 
         self._renderWaiting = False
 
         with self._renderlock:
-            #logger.debug('(%r) render beginning...', threading.current_thread())
+            #logger.debug('(%r) render beginning...', threading.currentThread())
             self._rendering = True
 
         # actually do the refresh
@@ -492,7 +492,7 @@ class VQVivFuncgraphView(vq_hotkey.HotKeyMixin, e_qt_memory.EnviNavMixin, QWidge
 
         with self._renderlock:
             self._rendering = False
-        #logger.debug('(%r) render finished!', threading.current_thread())
+        #logger.debug('(%r) render finished!', threading.currentThread())
 
         # update the "real" _xref_cache from the one we just built
         with self._xref_cache_lock:
