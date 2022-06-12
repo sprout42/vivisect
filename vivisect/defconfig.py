@@ -56,7 +56,7 @@ defconfig = {
                 'mask': 0xFFF00000,
                 'top':  0xBFB08000,
                 'pointer': 0xBFB08000,
-        },
+            },
             'taint':{
                 'base': 0x4156000F,
                 'byte': 'a',
@@ -134,7 +134,7 @@ docconfig = {
                 'mask':'Stack mask',
                 'top':'Stack top address',
                 'pointer':'Stack pointer',
-        },
+            },
             'taint':{
                 'base':'Taint base address',
                 'byte':'Taint byte value',
@@ -161,5 +161,5 @@ docconfig = {
     'vdb':vdb.docconfig.get('vdb'),
     'user':{
         'name': 'Username.  When not set, defaults to current system user.',
-        }
+    }
 }
