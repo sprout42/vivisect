@@ -1,4 +1,3 @@
-import weakref
 
 import envi
 import envi.memory as e_mem
@@ -7,7 +6,7 @@ import envi.memory as e_mem
 class WorkspaceMemoryObject(e_mem.MemoryObject):
 
     def __init__(self, vw, maps, nosegfault=False):
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.nosegfault = nosegfault
         e_mem.MemoryObject.__init__(self, maps)
 

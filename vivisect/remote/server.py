@@ -3,7 +3,6 @@ import sys
 import cobra
 import queue
 import logging
-import weakref
 import argparse
 import threading
 
@@ -39,7 +38,7 @@ class VivServerClient:
     talk to the server...
     '''
     def __init__(self, vw, server, wsname):
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.chan = None
         self.wsname = wsname
         self.server = server

@@ -4,7 +4,6 @@ their operands should be a  pointer locations.
 This module should be run after codeblocks analyis pass.
 """
 
-import weakref
 
 import envi
 import vivisect.exc as v_exc
@@ -17,7 +16,7 @@ class instrhook_watcher (viv_imp_monitor.EmulationMonitor):
 
     def __init__(self, vw, tryva):
         viv_imp_monitor.EmulationMonitor.__init__(self)
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.tryva = tryva
         self.hasret = False
         self.mndist = {}

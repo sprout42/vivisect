@@ -1,7 +1,6 @@
 '''
 A module to contain code flow analysis for envi opcode objects...
 '''
-import weakref
 import logging
 import collections
 
@@ -38,7 +37,7 @@ class CodeFlowContext(object):
 
         self._funcs = {}
         self._fcalls = {}
-        self._mem = weakref.proxy(mem)
+        self._mem = mem
         self._cf_noret = {}     # noret funcs
         self._cf_noflow = {}    # va's to stop on
 

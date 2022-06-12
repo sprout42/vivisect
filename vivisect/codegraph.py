@@ -1,7 +1,6 @@
 '''
 Various codeflow oriented graph constructs.
 '''
-import weakref
 
 import envi
 import visgraph.graphcore as v_graphcore
@@ -36,7 +35,7 @@ class CodeBlockGraph(v_graphcore.HierGraph):
 
     def __init__(self, vw):
         v_graphcore.Graph.__init__(self)
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.nodevas = {}
 
     def addEntryPoint(self, va):

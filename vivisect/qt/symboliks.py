@@ -1,4 +1,3 @@
-import weakref
 import itertools
 import traceback
 
@@ -57,7 +56,7 @@ class VivSymbolikFuncPane(e_q_memory.EnviNavMixin, vq_save.SaveableWidget, QWidg
     viewidx = itertools.count()
 
     def __init__(self, vw, parent=None):
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         self.fva = None
         self.vwgui = vw.getVivGui()
 

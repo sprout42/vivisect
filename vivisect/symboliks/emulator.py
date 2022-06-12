@@ -1,5 +1,4 @@
 import os
-import weakref
 
 import envi.common as e_common
 import vivisect.symboliks.expression as v_s_expr
@@ -23,7 +22,7 @@ class SymbolikEmulator:
         self._sym_vars = {}
         self._sym_mem = {}
         self._sym_rseed = ''
-        self._sym_vw = weakref.proxy(vw)
+        self._sym_vw = vw
         self._sym_cconvs = {}    # function emulation can be calling convention aware
 
         self._sym_expr_parser = v_s_expr.SymbolikExpressionParser(defwidth=vw.psize)

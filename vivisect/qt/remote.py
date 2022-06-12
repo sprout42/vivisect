@@ -1,5 +1,3 @@
-import weakref
-
 from PyQt5.QtWidgets import *
 
 import vqt.main as vq_main
@@ -66,7 +64,7 @@ class BaseServerDialog(QDialog):
 class VivServerDialog(QDialog):
     def __init__(self, vw, parent=None):
         QDialog.__init__(self, parent=parent)
-        self.vw = weakref.proxy(vw)
+        self.vw = vw
         try:
             server = vw.config.remote.server
         except AttributeError:
