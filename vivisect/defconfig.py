@@ -52,13 +52,13 @@ defconfig = {
                 'timeout_secs': 45,
             }
             'stack':{
-                'base': 0x40078000,
-                'mask': 0xFFFF8000,
-                'top': 0x40080000,
-                'pointer': 0x4007ffe0,
+                'base': 0xBFB00000,
+                'mask': 0xFFF00000,
+                'top':  0xBFB08000,
+                'pointer': 0xBFB08000,
         },
             'taint':{
-                'base': 0xbfb0000f,
+                'base': 0x4156000F,
                 'byte': 'a',
                 'offset': 0x1000,
                 'mask': 0xffffe000,
