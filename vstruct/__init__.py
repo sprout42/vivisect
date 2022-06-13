@@ -51,6 +51,10 @@ class VStruct(vs_prims.v_base):
         bytes = vs.vsEmit()
 
     '''
+    __slots__ = tuple(set(vs_prims.v_base.__slots__ + ('_vs_values', '_vs_name',
+        '_vs_fields', '_vs_field_align', '_vs_padnum', '_vs_pcallbacks',
+        '_vs_fastfields')))
+
     def __init__(self):
         # A tiny bit of evil...
         object.__setattr__(self, '_vs_values', {})
@@ -409,11 +413,12 @@ class VStruct(vs_prims.v_base):
 
     def __getattr__(self, name):
         # Gotta do this for pickle issues...
-        vsvals = self.__dict__.get("_vs_values")
-        if vsvals is None:
-            vsvals = {}
-            self.__dict__["_vs_values"] = vsvals
-        r = vsvals.get(name)
+        #vsvals = self.__dict__.get("_vs_values")
+        #vsvals = self.__dict__.get("_vs_values")
+        #if vsvals is None:
+        #    vsvals = {}
+        #    self.__dict__["_vs_values"] = vsvals
+        r = self._vs_values.get(name)
         if r is None:
             raise AttributeError(name)
         if isinstance(r, vs_prims.v_prim):
@@ -503,7 +508,7 @@ class VUnion(VStruct):
 
         Any method named pcb_<FieldName> will be called back when the specified
         field is set by the parser.
-        
+
         """
         ret = offset
         for fname,fobj in self.vsGetFields():

@@ -4,6 +4,7 @@ from vstruct import VStruct
 from vstruct.primitives import *
 
 class v_bits(v_number):
+    __slots__ = tuple(set(v_number.__slots__ + ('_vs_bitwidth',)))
 
     def __init__(self, width):
         v_number.__init__(self)

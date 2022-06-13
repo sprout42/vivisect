@@ -3,13 +3,20 @@ import binascii
 
 
 class v_enum(object):
+    __slots__ = ('_vs_reverseMap', '_vs_map')
+
     def __init__(self):
         object.__setattr__(self, '_vs_reverseMap', {})
+        object.__setattr__(self, '_vs_map', {})
 
     def __setattr__(self, name, value):
         '''if duplicate values, last one wins!'''
         self._vs_reverseMap[value] = name
-        return object.__setattr__(self, name, value)
+        self._vs_map[name] = value
+        #return object.__setattr__(self, name, value)
+
+    def __getattr__(self, name):
+        return self._vs_map[name]
 
     def vsReverseMapping(self, val, default=None):
         '''Maps an integer to its name. Returns default if not found'''
@@ -17,12 +24,19 @@ class v_enum(object):
 
 
 class v_bitmask(object):
+    __slots__ = ('_vs_reverseMap', '_vs_map')
+
     def __init__(self):
-        object.__setattr__(self, "_vs_reverseMap", {})
+        object.__setattr__(self, '_vs_reverseMap', {})
+        object.__setattr__(self, '_vs_map', {})
 
     def __setattr__(self, name, value):
         self._vs_reverseMap[value] = name
-        return object.__setattr__(self, name, value)
+        self._vs_map[name] = value
+        #return object.__setattr__(self, name, value)
+
+    def __getattr__(self, name):
+        return self._vs_map[name]
 
     def vsReverseMapping(self, val, default=None):
         '''Returns a list of names where apply the AND of the mask and val is non-zero'''
@@ -30,6 +44,8 @@ class v_bitmask(object):
 
 
 class v_base(object):
+    __slots__ = ('_vs_meta',)
+
     def __init__(self):
         self._vs_meta = {}
 
@@ -54,11 +70,13 @@ class v_base(object):
 
 
 class v_prim(v_base):
+    __slots__ = tuple(set(v_base.__slots__ + ('_vs_value', '_vs_fmt', '_vs_align', '_vs_size')))
+
     def __init__(self):
         v_base.__init__(self)
         # Used by base len(),vsGetFormat, etc...
         self._vs_value = None
-        self._vs_length = None
+        self._vs_size = None
         self._vs_fmt = None
         self._vs_align = None
 
@@ -76,8 +94,8 @@ class v_prim(v_base):
 
     def vsParseFd(self, fd):
         # Most primitives should be able to simply use this...
-        fbytes = fd.read(self._vs_length)
-        if len(fbytes) != self._vs_length:
+        fbytes = fd.read(self._vs_size)
+        if len(fbytes) != self._vs_size:
             raise Exception('Not enough data in fd!')
 
         self.vsParse(fbytes)
@@ -113,7 +131,7 @@ class v_prim(v_base):
         return repr(self.vsGetValue())
 
     def __len__(self):
-        return self._vs_length
+        return self._vs_size
 
     def __str__(self):
         return str(self.vsGetValue())
@@ -152,17 +170,18 @@ signed_fmts = {
 
 
 class v_number(v_prim):
+    __slots__ = tuple(set(v_prim.__slots__ + ('_vs_bigend', '_vs_enum', '_vs_fmt', 'maxval')))
     _vs_length = 1
 
     def __init__(self, value=0, bigend=False, enum=None):
         v_prim.__init__(self)
         self._vs_bigend = bigend
         self._vs_enum = enum
-        self._vs_length = self.__class__._vs_length
-        self._vs_fmt = num_fmts.get((bigend, self._vs_length))
+        self._vs_size = self.__class__._vs_length
+        self._vs_fmt = num_fmts.get((bigend, self._vs_size))
 
         # TODO: could use envi.bits, but do we really want to dep on envi?
-        self.maxval = (2 ** (8 * self._vs_length)) - 1
+        self.maxval = (2 ** (8 * self._vs_size)) - 1
         self.vsSetValue(value)
 
     def vsGetValue(self):
@@ -179,7 +198,7 @@ class v_number(v_prim):
         '''
         Parse the given numeric type from the given bytes
         '''
-        sizeoff = offset + self._vs_length
+        sizeoff = offset + self._vs_size
 
         if self._vs_fmt is not None:
             b = fbytes[offset:sizeoff]
@@ -187,7 +206,7 @@ class v_number(v_prim):
 
         else:
             r = []
-            for i in range(self._vs_length):
+            for i in range(self._vs_size):
                 r.append(fbytes[offset + i])
 
             if not self._vs_bigend:
@@ -207,7 +226,7 @@ class v_number(v_prim):
             return struct.pack(self._vs_fmt, self._vs_value)
 
         r = []
-        for i in range(self._vs_length):
+        for i in range(self._vs_size):
             r.append((self._vs_value >> (i*8)) & 0xff)
 
         if self._vs_bigend:
@@ -343,14 +362,15 @@ class v_number(v_prim):
 
 
 class v_snumber(v_number):
+    __slots__ = tuple(set(v_number.__slots__ + ('smask', '_vs_fmt')))
     _vs_length = 1
 
     def __init__(self, value=0, bigend=False, enum=None):
-        smaxval = (2**((8 * self._vs_length)-1)) - 1
+        smaxval = (2**((8 * self._vs_size)-1)) - 1
         self.smask = smaxval + 1
 
         v_number.__init__(self, value=value, bigend=bigend, enum=enum)
-        self._vs_fmt = signed_fmts.get((bigend, self._vs_length))
+        self._vs_fmt = signed_fmts.get((bigend, self._vs_size))
 
     def vsSetValue(self, value):
         value = value & self.maxval
@@ -427,14 +447,15 @@ float_fmts = {
 }
 
 class v_float(v_prim):
+    __slots__ = tuple(set(v_prim.__slots__ + ('_vs_bigend', '_vs_value', '_vs_fmt', 'maxval')))
     _vs_length = 4
 
     def __init__(self, value=0.0, bigend=False):
         v_prim.__init__(self)
         self._vs_bigend = bigend
         self._vs_value = value
-        self._vs_length = self.__class__._vs_length
-        self._vs_fmt = float_fmts.get( (bigend, self._vs_length) )
+        self._vs_size = self.__class__._vs_length
+        self._vs_fmt = float_fmts.get( (bigend, self._vs_size) )
 
     def vsSetValue(self, value):
         """
@@ -449,7 +470,7 @@ class v_float(v_prim):
         '''
         Parse the given numeric type from the given bytes
         '''
-        sizeoff = offset + self._vs_length
+        sizeoff = offset + self._vs_size
 
         if self._vs_fmt is not None:
             b = fbytes[ offset : sizeoff ]
@@ -457,7 +478,7 @@ class v_float(v_prim):
 
         else:
             r = []
-            for i in range(self._vs_length):
+            for i in range(self._vs_size):
                 r.append( ord( fbytes[ offset + i ] ) )
 
             if not self._vs_bigend:
@@ -477,7 +498,7 @@ class v_float(v_prim):
             return struct.pack(self._vs_fmt, self._vs_value)
 
         r = []
-        for i in range(self._vs_length):
+        for i in range(self._vs_size):
             r.append( chr( (self._vs_value >> (i*8)) & 0xff) )
 
         if self._vs_bigend:
@@ -561,18 +582,18 @@ class v_bytes(v_prim):
         v_prim.__init__(self)
         if vbytes is None:
             vbytes = b'\x00' * size
-        self._vs_length = len(vbytes)
+        self._vs_size = len(vbytes)
         self._vs_value = vbytes
         self._vs_align = 1
-        self._vs_fmt = '%ds' % self._vs_length
+        self._vs_fmt = '%ds' % self._vs_size
 
     def vsSetValue(self, val):
-        if len(val) != self._vs_length:
+        if len(val) != self._vs_size:
             raise Exception('v_bytes field set to wrong length!')
         self._vs_value = val
 
     def vsParse(self, fbytes, offset=0):
-        offend = offset + self._vs_length
+        offend = offset + self._vs_size
         self._vs_value = fbytes[offset : offend]
         return offend
 
@@ -581,7 +602,7 @@ class v_bytes(v_prim):
 
     def vsSetLength(self, size):
         size = int(size)
-        self._vs_length = size
+        self._vs_size = size
         self._vs_fmt = '%ds' % size
         # Either chop or expand my string...
         b = self._vs_value[:size]
@@ -601,13 +622,13 @@ class v_str(v_prim):
 
     def __init__(self, size=4, val=b''):
         v_prim.__init__(self)
-        self._vs_length = size
+        self._vs_size = size
         self._vs_fmt = '%ds' % size
         self._vs_value = val.ljust(size, b'\x00')
         self._vs_align = 1
 
     def vsParse(self, fbytes, offset=0):
-        offend = offset + self._vs_length
+        offend = offset + self._vs_size
         self._vs_value = fbytes[offset : offend]
         return offend
 
@@ -621,11 +642,11 @@ class v_str(v_prim):
     def vsSetValue(self, val):
         if type(val) is str:
             val = val.encode('utf-8')
-        self._vs_value = val.ljust(self._vs_length, b'\x00')
+        self._vs_value = val.ljust(self._vs_size, b'\x00')
 
     def vsSetLength(self, size):
         size = int(size)
-        self._vs_length = size
+        self._vs_size = size
         self._vs_fmt = '%ds' % size
         # Either chop or expand my string...
         b = self._vs_value[:size]
@@ -655,7 +676,7 @@ class v_zstr(v_prim):
         nulloff += diff
 
         self._vs_value = fbytes[offset : nulloff]
-        self._vs_length = len(self._vs_value)
+        self._vs_size = len(self._vs_value)
         return nulloff
 
     def vsParseFd(self, fd):
@@ -678,7 +699,7 @@ class v_zstr(v_prim):
         length = len(val)
         diff = self._vs_align - (length % self._vs_align)
         self._vs_value = val + b'\x00'*(diff)
-        self._vs_length = len(self._vs_value)
+        self._vs_size = len(self._vs_value)
         self._vs_align_pad = diff
 
     def vsSetLength(self, size):
@@ -691,18 +712,19 @@ class v_wstr(v_str):
     NOTE: the size paramater is in WCHARs!
     '''
 
+    __slots__ = tuple(set(v_str.__slots__ + ('_vs_encode',)))
     _vs_builder = True
 
     def __init__(self, size=4, encode='utf-16le', val=b''):
         v_str.__init__(self)
         b = val.ljust(size, b'\x00')
-        self._vs_length = len(b)
+        self._vs_size = len(b)
         self._vs_value = b
         self._vs_encode = encode
         self._vs_align = 2
 
     def vsParse(self, fbytes, offset=0):
-        offend = offset + self._vs_length
+        offend = offset + self._vs_size
         self._vs_value = fbytes[offset : offend]
         return offend
 
@@ -750,10 +772,10 @@ class v_zwstr(v_str):
         nulloff += diff
 
         self._vs_value = fbytes[offset : nulloff]
-        self._vs_length = len(self._vs_value)
+        self._vs_size = len(self._vs_value)
         return nulloff
 
-        #offend = offset + self._vs_length
+        #offend = offset + self._vs_size
         #self._vs_value = fbytes[offset : offend]
         #return offend
 
@@ -774,13 +796,14 @@ class v_zwstr(v_str):
         diff = self._vs_align - (length % self._vs_align)
         self._vs_value = rbytes + b'\x00' * (diff)
         self._vs_value = rbytes.ljust(len(self), b'\x00')
-        self._vs_length = len(self._vs_value)
+        self._vs_size = len(self._vs_value)
         self._vs_align_pad = diff
 
     def vsSetLength(self, size):
         raise Exception('Cannot vsSetLength on v_zwstr! (its dynamic)')
 
 class GUID(v_prim):
+    __slots__ = tuple(set(v_prim.__slots__ + ('_vs_guid_fields',)))
 
     _vs_builder = True
 
@@ -790,7 +813,7 @@ class GUID(v_prim):
         constructor to populate initial values.
         """
         v_prim.__init__(self)
-        self._vs_length = 16
+        self._vs_size = 16
         self._vs_value = '\x00' * 16
         self._vs_fmt = '16s'
         self._guid_fields = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -798,7 +821,7 @@ class GUID(v_prim):
             self._parseGuidStr(guidstr)
 
     def vsParse(self, fbytes, offset=0):
-        offend = offset + self._vs_length
+        offend = offset + self._vs_size
         self._guid_fields = struct.unpack("<IHH8B", fbytes[offset:offend])
         return offend
 
