@@ -53,7 +53,7 @@ class VStruct(vs_prims.v_base):
     '''
     __slots__ = tuple(set(vs_prims.v_base.__slots__ + ('_vs_values', '_vs_name',
         '_vs_fields', '_vs_field_align', '_vs_padnum', '_vs_pcallbacks',
-        '_vs_fastfields')))
+        '_vs_size', '_vs_fastfields', '_vs_fastfmt', '_vs_fastlen')))
 
     def __init__(self):
         # A tiny bit of evil...
@@ -65,6 +65,9 @@ class VStruct(vs_prims.v_base):
         self._vs_padnum = 0
         self._vs_pcallbacks = {}
         self._vs_fastfields = None
+        self._vs_fastfmt = None
+        self._vs_fastlen = 0
+        self._vs_size = 0
 
     def __mul__(self, x):
         # build a list of instances of this vstruct
@@ -412,13 +415,12 @@ class VStruct(vs_prims.v_base):
         return ret
 
     def __getattr__(self, name):
-        # Gotta do this for pickle issues...
-        #vsvals = self.__dict__.get("_vs_values")
-        #vsvals = self.__dict__.get("_vs_values")
-        #if vsvals is None:
-        #    vsvals = {}
-        #    self.__dict__["_vs_values"] = vsvals
-        r = self._vs_values.get(name)
+        try:
+            vsvals = object.__getattribute__(self, '_vs_values')
+        except AttributeError:
+            vsvals = {}
+            object.__setattr__(self, '_vs_values', vsvals)
+        r = vsvals.get(name)
         if r is None:
             raise AttributeError(name)
         if isinstance(r, vs_prims.v_prim):

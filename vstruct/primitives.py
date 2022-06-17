@@ -170,7 +170,8 @@ signed_fmts = {
 
 
 class v_number(v_prim):
-    __slots__ = tuple(set(v_prim.__slots__ + ('_vs_bigend', '_vs_enum', '_vs_fmt', 'maxval')))
+    __slots__ = tuple(set(v_prim.__slots__ +
+        ('_vs_bigend', '_vs_enum', '_vs_fmt', 'maxval')))
     _vs_length = 1
 
     def __init__(self, value=0, bigend=False, enum=None):
@@ -366,7 +367,8 @@ class v_snumber(v_number):
     _vs_length = 1
 
     def __init__(self, value=0, bigend=False, enum=None):
-        smaxval = (2**((8 * self._vs_size)-1)) - 1
+        self._vs_size = self.__class__._vs_length
+        smaxval = (2**((8 * self.__class__._vs_length)-1)) - 1
         self.smask = smaxval + 1
 
         v_number.__init__(self, value=value, bigend=bigend, enum=enum)
@@ -803,7 +805,7 @@ class v_zwstr(v_str):
         raise Exception('Cannot vsSetLength on v_zwstr! (its dynamic)')
 
 class GUID(v_prim):
-    __slots__ = tuple(set(v_prim.__slots__ + ('_vs_guid_fields',)))
+    __slots__ = tuple(set(v_prim.__slots__ + ('_guid_fields',)))
 
     _vs_builder = True
 
