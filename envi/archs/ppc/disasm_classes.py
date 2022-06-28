@@ -183,7 +183,7 @@ class PpcRegOper(envi.RegisterOper):
         return True
 
     def involvesPC(self):
-        return self.reg == 15
+        return False
 
     def isDeref(self):
         return False
@@ -192,9 +192,6 @@ class PpcRegOper(envi.RegisterOper):
         return None
 
     def getOperValue(self, op, emu=None):
-        if self.reg == REG_PC:
-            return self.va  # FIXME: is this modified?  or do we need to att # to this?
-
         if emu == None:
             return None
 
