@@ -8,8 +8,8 @@ import copy
 import struct
 import traceback
 
-from envi.archs.ppc.regs import *
-from envi.archs.ppc.disasm import *
+import envi.archs.ppc.regs as eapr
+import envi.archs.ppc.disasm as eapd
 from . import vle
 
 ''' taken from the MCP850 ref manual (circa 2001)
@@ -76,9 +76,9 @@ class Ppc64EmbeddedModule(envi.ArchitectureModule):
         self.psize = mode//8
         self.maps = tuple()
         if self.psize == 8:
-            self._arch_dis = Ppc64EmbeddedDisasm()
+            self._arch_dis = eapd.Ppc64EmbeddedDisasm()
         else:
-            self._arch_dis = Ppc32EmbeddedDisasm()
+            self._arch_dis = eapd.Ppc32EmbeddedDisasm()
         self._arch_vle_dis = vle.VleDisasm()
 
         # used to store VLE information
@@ -122,8 +122,15 @@ class Ppc64EmbeddedModule(envi.ArchitectureModule):
     def archGetRegisterGroups(self):
         groups = envi.ArchitectureModule.archGetRegisterGroups(self)
 
-        general = ('general', general_regs)  # from regs.py
-        groups.append(general)
+        # Add in the different register groups from regs.py
+        groups['general'] = eapr.regs_general
+        groups['float'] = eapr.regs_fpu
+        groups['vector'] = eapr.regs_altivec
+        groups['embedded'] = eapr.regs_spe
+        groups['special'] = eapr.regs_spr
+        groups['timebase'] = eapr.regs_timebase
+        groups['device'] = eapr.regs_device
+        groups['performance'] = eapr.regs_performance
 
         return groups
 
@@ -237,9 +244,9 @@ class Ppc64ServerModule(Ppc64EmbeddedModule):
     def __init__(self, mode=64, archname='ppc-server'):
         Ppc64EmbeddedModule.__init__(self, mode=mode, archname=archname)
         if self.psize == 8:
-            self._arch_dis = Ppc64ServerDisasm()
+            self._arch_dis = eapd.Ppc64ServerDisasm()
         else:
-            self._arch_dis = Ppc32ServerDisasm()
+            self._arch_dis = eapd.Ppc32ServerDisasm()
 
     def isVle(self, va):
         return False

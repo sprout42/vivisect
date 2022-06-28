@@ -400,13 +400,10 @@ class Ppc64RegisterContext(e_reg.RegisterContext):
 
 # Special groups of PPC register names
 
-# General = GPRs
+# General = GPRs + system registers + a few common SPRs
 regs_general = [name for name, _ in gprs64]
-
-# Core = GPRs + system registers + a few common SPRs
-regs_core = [name for name, _ in gprs64]
-regs_core.extend(name for name, _ in sysregs)
-regs_core.extend((
+regs_general.extend(name for name, _ in sysregs)
+regs_general.extend((
     'lr',
     'xer',
     'ctr',
