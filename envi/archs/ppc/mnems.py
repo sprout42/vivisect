@@ -10633,6 +10633,14 @@ THING_FILL = 0
 THING_VAR = 1
 THING_STATIC = 2
 
+rfi_instrs = [
+    'rfi',
+    'rfgi',
+    'rfci',
+    'rfdi',
+    'rfmci',
+]
+
 rAnegades = [
     #'addi',        # handled in aliasing, if rA==0, these are really LI and LIS
     #'addis',
@@ -12135,6 +12143,7 @@ for _mnem in const_gen_vle.mnems:
     out.append('IF_BRANCH_PREV_TARGET = 1<<12')
     out.append('IF_MEM_EA = 1<<13')
     out.append('IF_INDEXED = 1<<14')
+    out.append('IF_RFI = 1<<15')
     out.append('')
 
     out.append('OF_NONE      = 0')
@@ -12276,6 +12285,9 @@ for _mnem in const_gen_vle.mnems:
                 iflags.append('IF_MEM_EA')
                 if form == 'X' and 'rA' in field_types and 'rB' in field_types:
                     iflags.append('IF_INDEXED')
+
+            if mnem in rfi_instrs:
+                iflags.append('IF_RFI')
 
             # last flag check
             if not len(iflags):
