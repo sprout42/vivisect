@@ -4154,13 +4154,10 @@ class PpcAbstractEmulator(envi.Emulator):
         rB = e_bits.decimeltofloat(self.getOperValue(op, 2) & 0xFFFFFFFF, size=4, endian=self.getEndian())
 
         if (a in FNAN_SINGLE_TUP) or (b in FNAN_SINGLE_TUP):
-            if a in FNAN_SINGLE_NEG_TUP:
+            if a in FNAN_SINGLE_NEG_TUP or b in FNAN_SINGLE_NEG_TUP:
                 result = 0xff7fffff
-            elif b in FNAN_SINGLE_NEG_TUP and a not in FNAN_SINGLE_NEG_TUP:
-                result = 0xff7fffff
-            if a in FNAN_SINGLE_POS_TUP:
-                result = 0x7f7fffff
-            elif (b and not a) in FNAN_SINGLE_POS_TUP:
+            else:
+                # Must be positive
                 result = 0x7f7fffff
         else:
             try:
@@ -4216,13 +4213,10 @@ class PpcAbstractEmulator(envi.Emulator):
             result = e_bits.floattodecimel(rA - rB, size=4, endian=self.getEndian())
             if (a in FNAN_SINGLE_TUP) or (b in FNAN_SINGLE_TUP) or self.is_denorm32(a) or self.is_denorm32(b):
                 self.setRegister(REG_SPEFSCR_FINV, 1)
-                if a in FNAN_SINGLE_NEG_TUP:
+                if a in FNAN_SINGLE_NEG_TUP or b in FNAN_SINGLE_NEG_TUP:
                     result = 0xff7fffff
-                elif b in FNAN_SINGLE_NEG_TUP and a not in FNAN_SINGLE_NEG_TUP:
-                    result = 0xff7fffff
-                if a in FNAN_SINGLE_POS_TUP:
-                    result = 0x7f7fffff
-                elif (b and not a) in FNAN_SINGLE_POS_TUP:
+                else:
+                    # Must be positive
                     result = 0x7f7fffff
         except OverflowError:
             result = 0x7F7FFFFF
@@ -4265,6 +4259,7 @@ class PpcAbstractEmulator(envi.Emulator):
         self.setOperValue(op, 0, result)
 
     def i_efscmpgt(self, op):
+        crnum = op.opers[0].field
         al = e_bits.decimeltofloat(self.getOperValue(op, 1) & 0xFFFFFFFF, size=4, endian=self.getEndian())
         bl = e_bits.decimeltofloat(self.getOperValue(op, 2) & 0xFFFFFFFF, size=4, endian=self.getEndian())
 
@@ -4274,11 +4269,12 @@ class PpcAbstractEmulator(envi.Emulator):
             self.setOperValue(op, 0, 0b0000)
 
     def i_efscmpeq(self, op):
+        self.getOperValue(op, 1)
         al = e_bits.decimeltofloat(self.getOperValue(op, 1) & 0xFFFFFFFF, size=4, endian=self.getEndian())
         bl = e_bits.decimeltofloat(self.getOperValue(op, 2) & 0xFFFFFFFF, size=4, endian=self.getEndian())
 
         if al == bl:
-            self.setOperValue(op, 0, 0b0100)
+            self.setOperValue(op, 0, 0b0010)
         else:
             self.setOperValue(op, 0, 0b0000)
 
@@ -4287,9 +4283,13 @@ class PpcAbstractEmulator(envi.Emulator):
         bl = e_bits.decimeltofloat(self.getOperValue(op, 2) & 0xFFFFFFFF, size=4, endian=self.getEndian())
 
         if al < bl:
-            self.setOperValue(op, 0, 0b0100)
+            self.setOperValue(op, 0, 0b1000)
         else:
             self.setOperValue(op, 0, 0b0000)
+
+    i_efststgt = i_efscmpgt
+    i_efststeq = i_efscmpeq
+    i_efststlt = i_efscmplt
 
     def i_efscth(self, op):
         f = self.getOperValue(op,1)
