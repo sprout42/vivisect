@@ -8,6 +8,7 @@ import logging
 import collections
 
 import envi
+import envi.common as e_cmn
 
 from vivisect.const import REF_CODE, LOC_POINTER, LOC_OP
 
@@ -77,7 +78,8 @@ def analyzeFunction(vw, funcva):
 
                 # This location used to be a pointer but we need to turn it into
                 # a code block
-                vw.delLocation(lva)
+                logger.log(e_cmn.MIRE, 'Changing address 0x%x from pointer to code', va)
+                vw.delLocation(va)
 
                 # Mark ltype as None so that this address is turned into an
                 # instruction
