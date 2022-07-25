@@ -94,7 +94,7 @@ class AnalysisMonitor(EmulationMonitor):
                     vw.setFunctionLocal(self.fva, spdelta, LSYM_NAME, ('int','local%d' % abs(spdelta)))
 
             else:
-                self.checkAddDataXref(va, val, discrete):
+                self.checkAddDataXref(va, val, discrete)
 
         for va, callname, argv in self.callcomments:
             reprargs = [emu.reprVivValue(val) for val in argv]

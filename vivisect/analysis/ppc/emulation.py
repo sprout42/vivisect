@@ -66,10 +66,10 @@ IVORx_MASK = 0x0000FFF0
 # * Analyze and Annotate Calling Convention data
 # * Annotate Read/Writes of ctr and registers
 
-class AnalysisMonitor(viv_monitor.AnalysisMonitor):
+class PpcAnalysisMonitor(viv_monitor.AnalysisMonitor):
 
     def __init__(self, vw, fva):
-        viv_monitor.AnalysisMonitor.__init__(self, vw, fva)
+        super().__init__(vw, fva)
         self.retbytes = None
         self.badops = vw.arch.archGetBadOps()
         self.spr_reads = {}
@@ -81,10 +81,10 @@ class AnalysisMonitor(viv_monitor.AnalysisMonitor):
         if op in self.badops:
             raise viv_exc.BadOpBytes(op.va)
 
-        viv_monitor.AnalysisMonitor.prehook(self, emu, op, starteip)
+        super().prehook(self, emu, op, starteip)
 
     def posthook(self, emu, op, starteip):
-        viv_monitor.AnalysisMonitor.posthook(self, emu, op, starteip)
+        super().posthook(emu, op, starteip)
 
         # Look for SPR reads and writes, except for LR (and CTR?)
         if op.mnem == 'mfspr' and len(op.opers) >= 2 and op.opers[1].reg != e_ppc.REG_LR:
@@ -110,7 +110,7 @@ class AnalysisMonitor(viv_monitor.AnalysisMonitor):
             self.mmu_writes.append((op.va, mas0, mas1, mas2, mas3))
 
     def addAnalysisResults(self, vw, emu):
-        viv_monitor.AnalysisMonitor.addAnalysisResults(self, vw, emu)
+        super().addAnalysisResults(vw, emu)
 
         # Add custom PPC VA Sets if any SPR reads/writes or TLB writes happened,
         # sort the entries to make it faster to find specific instruction in
@@ -186,7 +186,7 @@ def buildFunctionApi(vw, fva, emu, emumon):
 
 def analyzeFunction(vw, fva):
     emu = vw.getEmulator(logread=True, logwrite=True)
-    emumon = AnalysisMonitor(vw, fva)
+    emumon = PpcAnalysisMonitor(vw, fva)
 
     emu.setEmulationMonitor(emumon)
     emu.runFunction(fva, maxhit=1)
