@@ -2628,9 +2628,7 @@ class PpcAbstractEmulator(envi.Emulator):
     def denorm(value):
         is_denorm = False
         if value & 0x7f000000 == False:
-            #print('value & 0x7f000000 = False')
             if value & 0xffffff:
-                #print('value & 0xffffff = True')
                 is_denorm = True
         return is_denorm
 
@@ -4512,7 +4510,6 @@ class PpcAbstractEmulator(envi.Emulator):
 
             try:
                 result = e_bits.floattodecimel((float_A * float_B), size=4, endian=self.getEndian())
-                print(hex(result))
             except OverflowError:
                 result = FP_SINGLE_POS_MAX
                 self.setRegister(REG_SPEFSCR_FOVF, 1)
