@@ -12226,9 +12226,10 @@ for _mnem in const_gen_vle.mnems:
                 if fname == 'SIMM':
                     fname = 'SIMM%d' % sz
 
-                # If this instruction is in the SP category and the field is an
-                # GPR (rX) then use FIELD_sX instead of FIELD_rX
-                if cat.startswith('SP') and fname[0] == 'r':
+                # If this instruction is in the SP (except for SP.FS) category
+                # and the field is an GPR (rX) then use FIELD_sX instead of
+                # FIELD_rX
+                if cat.startswith('SP') and cat != 'SP.FS' and fname[0] == 'r':
                     fout.append(" ( '%s', %s, %s, 0x%x, %s )," % (fname, "FIELD_s"+fname[1:], shr, fmask, oflags))
                 else:
                     fout.append(" ( '%s', %s, %s, 0x%x, %s )," % (fname, "FIELD_"+fname, shr, fmask, oflags))
