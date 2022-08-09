@@ -2732,8 +2732,6 @@ class PpcAbstractEmulator(envi.Emulator):
     def i_fadds(self, op):
         self.i_fadd(op, fpsize=4)
 
-    i_efsadd = i_fadds
-
     def i_fsub(self, op, fpsize=8):
         frA = self.getOperValue(op, 1)
         frB = self.getOperValue(op, 2)
@@ -4101,33 +4099,33 @@ class PpcAbstractEmulator(envi.Emulator):
         result = None
         if b == 0 or b == 0x80000000:
             if a == 0x80000000 or (a in FNAN_NEG_TUP):
-                result = 0xff7fffff
+                result = FP_SINGLE_NEG_MAX
             elif a == 0 or (a in FNAN_POS_TUP):
-                result = 0x7f7fffff
+                result = FP_SINGLE_POS_MAX
             elif b == 0:
-                result = 0x7f7fffff
+                result = FP_SINGLE_POS_MAX
             elif b == 0x80000000:
-                result = 0xff7fffff
+                result = FP_SINGLE_NEG_MAX
 
         #had to specify that rB wasn't a 0 or else python would freak out
         elif (b != 0 or 0x80000000) and rB != 0:
             if a in FNAN_POS_TUP:
-                result = 0x7f7fffff
+                result = FP_SINGLE_POS_MAX
             elif a in FNAN_NEG_TUP:
-                result = 0xff7fffff
+                result = FP_SINGLE_NEG_MAX
             elif (b  in FNAN_NEG_TUP) and a not in FNAN_NEG_TUP:
-                result = 0xff7fffff
+                result = FP_SINGLE_NEG_MAX
             elif (b in FNAN_POS_TUP) and a not in  FNAN_POS_TUP:
-                result = 0x7f7fffff
+                result = FP_SINGLE_POS_MAX
 
         if result is None:
             try:
                 result = e_bits.floattodecimel(rA / rB, size=4, endian=self.getEndian())
             except OverflowError:
-                result = 0x7F7FFFFF
+                result = FP_SINGLE_POS_MAX
                 self.setRegister(REG_SPEFSCR_FOVF, 1)
             except ZeroDivisionError:
-                result = 0x7F7FFFFF
+                result = FP_SINGLE_POS_MAX
                 #self.setRegister(REG_SPEFSCR_FINV, 1)
                 self.setRegister(REG_SPEFSCR_FDBZ, 1)
 
@@ -4148,25 +4146,31 @@ class PpcAbstractEmulator(envi.Emulator):
             self.setOperValue(op,0,result)
 
     def i_efsadd(self, op):
-        a = self.getOperValue(op, 1)
-        b = self.getOperValue(op, 2)
-        rA = e_bits.decimeltofloat(self.getOperValue(op, 1) & 0xFFFFFFFF, size=4, endian=self.getEndian())
-        rB = e_bits.decimeltofloat(self.getOperValue(op, 2) & 0xFFFFFFFF, size=4, endian=self.getEndian())
+        rA = self.getOperValue(op, 1)
+        rB = self.getOperValue(op, 2)
 
-        if (a in FNAN_SINGLE_TUP) or (b in FNAN_SINGLE_TUP):
-            if a in FNAN_SINGLE_NEG_TUP or b in FNAN_SINGLE_NEG_TUP:
-                result = 0xff7fffff
-            else:
-                # Must be positive
-                result = 0x7f7fffff
+        # TODO: The e200z759C reference manual is contradictory, it says that
+        # zero, NaN, Inf, or denormalized numbers result in no value being set
+        # in the destination right after it specifies the following checks:
+        if rA in FNAN_SINGLE_POS_TUP or rB in FNAN_SINGLE_POS_TUP:
+            # Result is max positive
+            self.setOperValue(op, 0, FP_SINGLE_POS_MAX)
+
+        elif rA in FNAN_SINGLE_NEG_TUP or rB in FNAN_SINGLE_NEG_TUP:
+            # Result is max negative
+            self.setOperValue(op, 0, FP_SINGLE_NEG_MAX)
+
         else:
+            float_A = e_bits.decimeltofloat(rA, size=4, endian=self.getEndian())
+            float_B = e_bits.decimeltofloat(rB, size=4, endian=self.getEndian())
+
             try:
-                result = e_bits.floattodecimel(rA + rB, size=4, endian=self.getEndian())
+                result = e_bits.floattodecimel(float_A + float_B, size=4, endian=self.getEndian())
             except OverflowError:
-                result = 0x7F7FFFFF
+                result = FP_SINGLE_POS_MAX
                 self.setRegister(REG_SPEFSCR_FOVF, 1)
 
-        self.setOperValue(op,0, result)
+            self.setOperValue(op,0, result)
 
     def i_efscfh(self, op):
         # Convert from half precision to single
@@ -4182,9 +4186,9 @@ class PpcAbstractEmulator(envi.Emulator):
         elif f in FNAN_HALF_TUP and self.getRegister(REG_SPEFSCR_FINVE) == 0:
             self.setRegister(REG_SPEFSCR_FINV, 1)
             if f & 0x8000:
-                result = 0xff7fffff
+                result = FP_SINGLE_NEG_MAX
             else:
-                result = 0x7f7fffff
+                result = FP_SINGLE_POS_MAX
             self.setOperValue(op, 0, result)
             return
 
@@ -4214,12 +4218,12 @@ class PpcAbstractEmulator(envi.Emulator):
             if (a in FNAN_SINGLE_TUP) or (b in FNAN_SINGLE_TUP) or self.is_denorm32(a) or self.is_denorm32(b):
                 self.setRegister(REG_SPEFSCR_FINV, 1)
                 if a in FNAN_SINGLE_NEG_TUP or b in FNAN_SINGLE_NEG_TUP:
-                    result = 0xff7fffff
+                    result = FP_SINGLE_NEG_MAX
                 else:
                     # Must be positive
-                    result = 0x7f7fffff
+                    result = FP_SINGLE_POS_MAX
         except OverflowError:
-            result = 0x7F7FFFFF
+            result = FP_SINGLE_POS_MAX
             self.setRegister(REG_SPEFSCR_FOVF, 1)
 
         self.setOperValue(op, 0, result)
@@ -4485,28 +4489,34 @@ class PpcAbstractEmulator(envi.Emulator):
     def i_efsmul(self, op): # incomplete.  doesn't match hardware 100%
         rA = self.getOperValue(op,1)
         rB = self.getOperValue(op,2)
-        rD = self.getOperValue(op,0)
-        RA = e_bits.decimeltofloat(self.getOperValue(op,1) & 0xFFFFFFFF, size=4, endian=self.getEndian())
-        RB = e_bits.decimeltofloat(self.getOperValue(op,2) & 0xFFFFFFFF, size=4, endian=self.getEndian())
-        RD = e_bits.decimeltofloat(self.getOperValue(op,0) & 0xFFFFFFFF, size=4, endian=self.getEndian())
 
-        try:
-            result = e_bits.floattodecimel((RA * RB), size=4, endian=self.getEndian())
-        except OverflowError:
-            result = 0x7F7FFFFF
-            self.setRegister(REG_SPEFSCR_FOVF, 1)
+        # TODO: The e200z759C reference manual is contradictory, it says that
+        # zero, NaN, Inf, or denormalized numbers result in no value being set
+        # in the destination right after it specifies the following checks:
+        if self.is_denorm32(rA) or self.is_denorm32(rB) or \
+                rA in F_SINGLE_ZERO_TUP or rB in F_SINGLE_ZERO_TUP:
+            # Correct the sign on zero
+            self.setOperValue(op, 0, FP_SINGLE_POS_ZERO)
 
-        if rA in (0, 0x80000000) or rB in (0, 0x80000000) or ((self.is_denorm32(rA) or self.is_denorm32(rB))):
+        elif rA in FNAN_SINGLE_POS_TUP or rB in FNAN_SINGLE_POS_TUP:
+            # Result is max positive
+            self.setOperValue(op, 0, FP_SINGLE_POS_MAX)
 
-            if self.is_denorm32(rA) or self.is_denorm32(rB) or self.is_denorm32(rD) or (rB in FNAN_SINGLE_TUP) or (rA in FNAN_SINGLE_TUP):
-                self.setRegister(REG_SPEFSCR_FINV, 1)
-                if self.is_denorm32(rA) or self.is_denorm32(rB) or self.is_denorm32(rD):
-                    result = 0
-            else:
-                result = rD
+        elif rA in FNAN_SINGLE_NEG_TUP or rB in FNAN_SINGLE_NEG_TUP:
+            # Result is max negative
+            self.setOperValue(op, 0, FP_SINGLE_NEG_MAX)
 
-            self.setOperValue(op, 0, result)
         else:
+            float_A = e_bits.decimeltofloat(rA, size=4, endian=self.getEndian())
+            float_B = e_bits.decimeltofloat(rB, size=4, endian=self.getEndian())
+
+            try:
+                result = e_bits.floattodecimel((float_A * float_B), size=4, endian=self.getEndian())
+                print(hex(result))
+            except OverflowError:
+                result = FP_SINGLE_POS_MAX
+                self.setRegister(REG_SPEFSCR_FOVF, 1)
+
             self.setOperValue(op, 0, result)
 
     def i_efsnabs(self, op):

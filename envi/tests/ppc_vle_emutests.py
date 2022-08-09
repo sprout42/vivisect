@@ -40,18 +40,6 @@ FHPS = FP_HALF_POS_SNAN
 FHNZ = FP_HALF_NEG_ZERO
 FHPZ = FP_HALF_POS_ZERO
 
-_1p1 = 0x3FF199999999999A # 1.1
-_2p2 = 0x400199999999999A # 2.2
-_3p3 = 0x400A666666666667 # 3.3
-_4p4 = 0x401199999999999A
-_5p5 = 0x4016000000000000
-
-n_1p1 = 0xBFF199999999999A # 1.1
-n_2p2 = 0xc00199999999999A # 2.2
-n_3p3 = 0xc00A666666666667 # 3.3
-n_4p4 = 0xc01199999999999A
-n_5p5 = 0xc016000000000000
-
 _1p1s = 0x3F8CCCCD # 1.1
 _2p2s = 0x400CCCCD # 2.2
 _3p3s = 0x40533333 # 3.3
@@ -64,9 +52,10 @@ n_3p3s = 0xC0533333 # 3.3
 n_4p4s = 0xC08CCCCD
 n_5p5s = 0xC0B00000
 
-pi = 0x400921fb54442d18
+pi_d = 0x400921fb54442d18
+pi_s = 0x40490fdb
 
-GOOD_EMU_TESTS = 517
+GOOD_EMU_TESTS = 522
 
 emutests = {
     #'e9f2': [{'setup': (('pc', 0x471450), ('lr', 0x313370)),
@@ -6251,19 +6240,19 @@ emutests = {
         {
             'setup': (
                 ('r0', 0x0),
-                ('r1', n_1p1),
+                ('r1', n_1p1s),
             ),
             'tests': (
-                ('r0', _1p1),
+                ('r0', _1p1s),
             )
         },
         {
             'setup': (
                 ('r0', 0x0),
-                ('r1', n_2p2),
+                ('r1', n_2p2s),
             ),
             'tests': (
-                ('r0', _2p2),
+                ('r0', _2p2s),
             )
         },
     ],
@@ -6567,14 +6556,14 @@ emutests = {
                 ('r2', 0x0)
             ),
             'tests': (
-                ('r0', 0x12345678),  #
+                ('r0', 0x0),  #
             )
         },
         {
             'setup': (
                 ('r0', 0x80002345),
                 ('r1', 0x0),
-                ('r2', 0x0)
+                ('r2', 0x40800000)
             ),
             'tests': (
                 ('r0', 0),  #
@@ -6583,23 +6572,71 @@ emutests = {
         {
             'setup': (
                 ('r0', 0x40400000),
-                ('r1', 0x0),
-                ('r2', 0x0)
+                ('r1', _1p1s),
+                ('r2', 0x7F800001)   # positive NaN
             ),
             'tests': (
-                ('r0', 0x40400000),  #
+                ('r0', 0x7F7FFFFF),  # max positive
             )
         },
         {
             'setup': (
                 ('r0', 0x40400000),
-                ('r1', 0x80012345),
-                ('r2', 0x80012345),
-                ('SPEFSCR_FINV', 0)
+                ('r1', 0x0),
+                ('r2', 0x7F800001)   # positive NaN
+            ),
+            'tests': (
+                ('r0', 0x00000000),  # zero
+            )
+        },
+        {
+            'setup': (
+                ('r0', 0x40400000),
+                ('r1', 0xFF800001),  # negative NaN
+                ('r2', _1p1s),
+            ),
+            'tests': (
+                ('r0', 0xFF7FFFFF),  # max negative
+            )
+        },
+        {
+            'setup': (
+                ('r0', 0x40400000),
+                ('r1', 0xFF800001),  # negative NaN
+                ('r2', 0x0),
+            ),
+            'tests': (
+                ('r0', 0x00000000),  # zero
+            )
+        },
+        {
+            'setup': (
+                ('r0', 0x40400000),
+                ('r1', _1p1s),
+                ('r2', 0x80000000),  # negative zero
+            ),
+            'tests': (
+                ('r0', 0x00000000),  # positive zero
+            )
+        },
+        {
+            'setup': (
+                ('r0', 0x40400000),
+                ('r1', _1p1s),
+                ('r2', 0x80012345),  # denormalized
             ),
             'tests': (
                 ('r0', 0),
-                ('SPEFSCR_FINV', 1)
+            )
+        },
+        {
+            'setup': (
+                ('r0', 0x40400000),
+                ('r2', 0x00012345),  # denormalized
+                ('r1', n_1p1s),
+            ),
+            'tests': (
+                ('r0', 0),
             )
         },
     ],
