@@ -4,6 +4,7 @@ import operator
 
 import vivisect
 import vivisect.exc as viv_exc
+import vivisect.const as viv_const
 import vivisect.impemu as viv_imp
 import vivisect.impemu.monitor as viv_monitor
 
@@ -81,7 +82,7 @@ class PpcAnalysisMonitor(viv_monitor.AnalysisMonitor):
         if op in self.badops:
             raise viv_exc.BadOpBytes(op.va)
 
-        super().prehook(self, emu, op, starteip)
+        super().prehook(emu, op, starteip)
 
     def posthook(self, emu, op, starteip):
         super().posthook(emu, op, starteip)
@@ -115,6 +116,16 @@ class PpcAnalysisMonitor(viv_monitor.AnalysisMonitor):
         # Add custom PPC VA Sets if any SPR reads/writes or TLB writes happened,
         # sort the entries to make it faster to find specific instruction in
         # future analysis modules.
+        try:
+            vaset = vw.getVaSet("ppc_spr_reads")
+        except viv_exc.InvalidVaSet:
+            vw.addVaSet("ppc_spr_reads", (("funcva", viv_const.VASET_ADDRESS), ("reads", viv_const.VASET_COMPLEX)))
+
+        try:
+            vaset = vw.getVaSet("ppc_spr_writes")
+        except viv_exc.InvalidVaSet:
+            vw.addVaSet("ppc_spr_writes", (("funcva", viv_const.VASET_ADDRESS), ("writes", viv_const.VASET_COMPLEX)))
+
         if self.spr_reads and vw.getVaSet('ppc_spr_reads'):
             vw.setVaSetRow('ppc_spr_reads', (self.fva, dict((k, sorted(v)) for k, v in self.spr_reads.items())))
         if self.spr_writes and vw.getVaSet('ppc_spr_writes'):
