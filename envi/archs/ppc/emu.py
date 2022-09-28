@@ -3341,12 +3341,12 @@ class PpcAbstractEmulator(envi.Emulator):
 
     ######################## TLB/MMU instructions ##########################
 
-    def i_tlbilx(self, op): pass
-    def i_tlbsync(self, op): pass
-    def i_tlbivax(self, op): pass
-    def i_tlbsx(self, op): pass
-    def i_tlbre(self, op): pass
-    def i_tlbwe(self, op): pass
+    i_tlbilx = i_nop
+    i_tlbsync = i_nop
+    i_tlbivax = i_nop
+    i_tlbsx = i_nop
+    i_tlbre = i_nop
+    i_tlbwe = i_nop
 
     ######################## utility instructions ##########################
 
@@ -4559,6 +4559,7 @@ class PpcAbstractEmulator(envi.Emulator):
     i_isync = i_nop
     i_msync = i_nop
     i_esync = i_nop
+    i_mbar = i_nop
 
     ######################## debug instructions ##########################
 
