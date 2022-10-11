@@ -50,7 +50,7 @@ defconfig = {
                 'case_failure': 5000,
                 'min_func_instr_size': 10,
                 'timeout_secs': 45,
-            }
+            },
             'stack':{
                 'base': 0xBFB00000,
                 'mask': 0xFFF00000,
