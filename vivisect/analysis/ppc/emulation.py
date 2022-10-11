@@ -153,7 +153,7 @@ class PpcAnalysisMonitor(viv_monitor.AnalysisMonitor):
                         vw.makeName(eva, funcname)
                         vw.setComment(va, funcname)
 
-    def checkAddDataXref(self, va, val, discrete):
+    def checkAddDataXref(self, vw, va, val, discrete):
         # For PPC data XREFS are only added through load/store instructions
         # which are tracked using the logread/logwrite feature
         pass
