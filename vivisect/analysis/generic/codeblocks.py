@@ -56,15 +56,8 @@ def analyzeFunction(vw, funcva):
 
             try:
                 op = vw.parseOpcode(va, arch=arch)
-            except envi.InvalidInstruction as e:
-                logger.info('Codeblock bad opcode at 0x%x, breaking on error %s', va, e)
-
-                # Save the block up until this location
-                blocks[start] = va - start
-                brefs.append((va, False))
-                break
-            except envi.SegmentationViolation as e:
-                logger.info('Codeblock bad memory address 0x%x, breaking on error %s', va, e)
+            except Exception as e:
+                logger.warning('Codeblock exception at 0x%x, breaking on error %s', va, e)
 
                 # Save the block up until this location
                 blocks[start] = va - start

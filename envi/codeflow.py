@@ -162,9 +162,7 @@ class CodeFlowContext(object):
                 op = self._mem.parseOpcode(va, arch=arch)
                 logger.log(e_cmn.MIRE, "... 0x%x: %r", va, op)
             except envi.InvalidInstruction as e:
-                # When attempting to discover code paths it seems normal to find
-                # sections of invalid code
-                logger.debug('parseOpcode error at 0x%.8x (addCodeFlow(0x%x)): %s', va, startva, e)
+                logger.warning('parseOpcode error at 0x%.8x (addCodeFlow(0x%x)): %s', va, startva, e)
                 continue
             except Exception as e:
                 logger.warning('Codeflow exception at 0x%.8x (addCodeFlow(0x%x)): %s', va, startva, e)
@@ -241,7 +239,7 @@ class CodeFlowContext(object):
                                     # until its done
                                     cf_eps[bva] = bflags
                                 else:
-                                    logger.log(e_cmn.MIRE, "descending into function 0x%x (from 0x%x)", bva, va)
+                                    logger.debug("descending into function 0x%x (from 0x%x)", bva, va)
                                     self.addEntryPoint(bva, arch=bflags)
 
                             if self._cf_noret.get(bva):
