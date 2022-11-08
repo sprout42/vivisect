@@ -114,10 +114,16 @@ class Ppc64EmbeddedModule(envi.ArchitectureModule):
         return Ppc64RegisterContext()
 
     def archGetBreakInstr(self):
-        return '\x7f\xe0\x00\x08'   # this is incorrect for VLE
+        # BOOKE:        dnh     4C00018C
+        # VLE 32bit:    e_dnh   7C0000C2
+        # VLE 16bit:    se_dnh  000F
+        return '\x4C\x00\x01\x8C'
 
     def archGetNopInstr(self):
-        return '\x60\x00\x00\x00'   # this is incorrect for VLE
+        # BOOKE:        nop (ori 0,0,0)     60000000
+        # VLE 32bit:    e_nop (e_ori 0,0,0) 1800D000
+        # VLE 16bit:    se_nop (se_or 0,0)  4400
+        return '\x60\x00\x00\x00'
 
     def archGetRegisterGroups(self):
         groups = envi.ArchitectureModule.archGetRegisterGroups(self)
@@ -229,10 +235,16 @@ class PpcVleModule(Ppc32EmbeddedModule):
         return self._arch_dis.disasm(bytez, offset, va)
 
     def archGetBreakInstr(self):
-        return '\x7f\xe0\x00\x08'   # this is incorrect for VLE
+        # BOOKE:        dnh     4C00018C
+        # VLE 32bit:    e_dnh   7C0000C2
+        # VLE 16bit:    se_dnh  000F
+        return '\x7C\x00\x00\xC2'
 
     def archGetNopInstr(self):
-        return '\x60\x00\x00\x00'   # this is incorrect for VLE
+        # BOOKE:        nop (ori 0,0,0)     60000000
+        # VLE 32bit:    e_nop (e_ori 0,0,0) 1800D000
+        # VLE 16bit:    se_nop (se_or 0,0)  4400
+        return '\x44\x00'
 
     def getEmulator(self):
         emu = PpcVleEmulator()
