@@ -24,9 +24,11 @@ __all__ = [
 
 class RiscVModule(envi.ArchitectureModule):
     def __init__(self, archname, description, endian=envi.ENDIAN_LSB):
+        # Description must be set before the ArchitectureModule is initialized
+        self.description = description
+
         envi.ArchitectureModule.__init__(self, archname, endian=endian)
 
-        self.description = description
         self.xlen = getRiscVXLEN(self.description)
         self.psize = self.xlen // 8
 
