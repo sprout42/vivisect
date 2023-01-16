@@ -206,6 +206,7 @@ arch_names = {
     Elf.EM_386: 'i386',
     Elf.EM_X86_64: 'amd64',
     Elf.EM_MSP430: 'msp430',
+    Elf.EM_RISCV: 'riscv',
 }
 
 archcalls = {
@@ -214,6 +215,7 @@ archcalls = {
     'arm': 'armcall',
     'thumb': 'armcall',
     'thumb16': 'armcall',
+    'riscv': 'riscvcall',
 }
 
 def getAddBaseAddr(elf, baseaddr=None):
@@ -356,7 +358,7 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
 
     # since getFileByVa is based on segments, and ELF Sections seldom cover all the
     # loadable memory space.... we'll add PT_LOAD Program Headers, only at the
-    # end.  If we add them first, they're always the matching segments.  At the 
+    # end.  If we add them first, they're always the matching segments.  At the
     # end, they make more of a default segment
     pcount = 0
     if vw.getFileByVa(baseaddr) is None:
@@ -734,7 +736,7 @@ def applyRelocs(elf, vw, addbase=False, baseoff=0):
             logger.debug('relocs: 0x%x: %s (%s)', rlva, dmglname, name)
             if arch in ('i386', 'amd64'):
                 if name:
-                    #if dmglname == 
+                    #if dmglname ==
                     if rtype == Elf.R_X86_64_IRELATIVE:
                         # before making import, let's fix up the pointer as a BASEPTR Relocation
                         ptr = r.r_addend
@@ -814,7 +816,7 @@ def applyRelocs(elf, vw, addbase=False, baseoff=0):
 
 
             if arch in ('arm', 'thumb', 'thumb16'):
-                # ARM REL entries require an addend that could be stored as a 
+                # ARM REL entries require an addend that could be stored as a
                 # number or an instruction!
                 import envi.archs.arm.const as eaac
                 if r.vsHasField('addend'):
@@ -822,7 +824,7 @@ def applyRelocs(elf, vw, addbase=False, baseoff=0):
                     addend = r.addend
                 else:
                     # otherwise, we have to check the stored value for number or instruction
-                    # if it's an instruction, we have to use the immediate value and then 
+                    # if it's an instruction, we have to use the immediate value and then
                     # figure out if it's negative based on the instruction!
                     try:
                         temp = vw.readMemoryPtr(rlva)
