@@ -410,7 +410,7 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
     f_preinita = elf.dyns.get(Elf.DT_PREINIT_ARRAY)
     if f_preinita is not None:
         f_preinitasz = elf.dyns.get(Elf.DT_PREINIT_ARRAYSZ)
-        makeFunctionTable(elf, vw, f_preinita, f_preinitasz, 'preinit_array', new_functions, new_pointers, baseaddr, addbase)
+        makeFunctionTable(elf, vw, f_preinita, f_preinitasz, 'preinit_array', new_functions, new_pointers, baseoff)
 
     # dynamic table
     phdr = elf.getDynPHdr()     # this is the Program Header which points at the DYNAMICS table, not the other way around.
