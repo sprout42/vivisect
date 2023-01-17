@@ -283,6 +283,11 @@ class RiscVRegOper(envi.RegisterOper):
         # the register
         self.tsize = SIZE_CONSTS.get(self.oflags & SIZE_FLAGS)
 
+    def _get_tsize(self, emu):
+        if self.tsize is None:
+            self.tsize = emu.getRegisterWidth(self.reg) // 8
+        return self.tsize
+
     def __eq__(self, oper):
         if not isinstance(oper, self.__class__):
             return False
@@ -297,43 +302,34 @@ class RiscVRegOper(envi.RegisterOper):
         return False
 
     def getWidth(self, emu):
-        return emu.getRegisterWidth(self.reg) // 8
+        return self._get_tsize(emu)
 
     def getRaw(self, op, emu=None):
         if self.reg == REG_ZERO:
             return 0
-        elif emu is None:
-            return None
 
         value = emu.getRegister(self.reg)
-        if self.tsize is not None:
-            return e_bits.unsigned(value, self.tsize)
-        else:
-            return value
+        return e_bits.unsigned(value, self._get_tsize(emu))
 
     def setRaw(self, op, emu=None, value=None):
         # Register X0 can't be written to
         if self.reg == REG_ZERO or emu is None:
             return
-        if self.tsize is not None:
-            value = e_bits.unsigned(value, self.tsize)
+
+        value = e_bits.unsigned(value, self._get_tsize(emu))
         emu.setRegister(self.reg, value)
 
     def getOperValue(self, op, emu=None):
-        value = self.getRaw(op, emu)
-        if value is None:
+        if emu is None:
             return None
 
+        value = self.getRaw(op, emu)
         if self.oflags & RISCV_OF.SIGNED:
-            # tsize _must_ be set
-            return e_bits.signed(value, self.tsize)
+            return e_bits.signed(value, self._get_tsize(emu))
         else:
             return value
 
     def setOperValue(self, op, emu=None, value=None):
-        if self.oflags & RISCV_OF.SIGNED:
-            # tsize _must_ be set
-            value = e_bits.signed(value, self.tsize)
         self.setRaw(op, emu, value)
 
     def getOperAddr(self, op, emu=None):
@@ -414,6 +410,9 @@ class RiscVFRegOper(RiscVRegOper):
         Utility function to get the floating point representation of the value
         in this operand's register.
         """
+        if emu is None:
+            return None
+
         return int_to_float(self.getRaw(op, emu), self.oflags)
 
     def setOperValue(self, op, emu=None, val=None):
@@ -474,6 +473,10 @@ class RiscVMemOper(envi.DerefOper):
     def _set_tsize(self):
         self.tsize = SIZE_CONSTS.get(self.oflags & SIZE_FLAGS)
 
+    def _get_tsize(self, emu):
+        # Memory operands must always have a size defined by the operand flags
+        return self.tsize
+
     def __eq__(self, oper):
         return isinstance(oper, self.__class__) \
             and self.base_reg == oper.base_reg \
@@ -496,11 +499,12 @@ class RiscVMemOper(envi.DerefOper):
 
         addr = self.getOperAddr(op, emu)
 
-        fmt = e_bits.fmt_chars[emu.getEndian()][self.tsize]
+        tsize = self._get_tsize(emu)
+        fmt = e_bits.fmt_chars[emu.getEndian()][tsize]
         if fmt is not None:
-            val &= e_bits.u_maxes[self.tsize]
+            val &= e_bits.u_maxes[tsize]
             emu.writeMemoryFormat(addr, fmt, val)
-        elif self.tsize == 16:
+        elif tsize == 16:
             lower_val = val & e_bits.u_maxes[8]
             upper_val = (val >> 64) & e_bits.u_maxes[8]
             if emu.getEndian() == envi.ENDIAN_LSB:
@@ -516,10 +520,11 @@ class RiscVMemOper(envi.DerefOper):
 
         addr = self.getOperAddr(op, emu)
 
-        fmt = e_bits.fmt_chars[emu.getEndian()][self.tsize]
+        tsize = self._get_tsize(emu)
+        fmt = e_bits.fmt_chars[emu.getEndian()][tsize]
         if fmt is not None:
             ret, = emu.readMemoryFormat(addr, fmt)
-        elif self.tsize == 16:
+        elif tsize == 16:
             lower_val = val & e_bits.u_maxes[8]
             upper_val = (val >> 64) & e_bits.u_maxes[8]
             if emu.getEndian() == envi.ENDIAN_LSB:
@@ -599,6 +604,9 @@ class RiscVJmpOper(RiscVMemOper):
         return self.getOperAddr(op, emu)
 
     def getOperValue(self, op, emu=None):
+        if emu is None:
+            return None
+
         # Return the calculated memory address
         return self.getOperAddr(op, emu)
 
