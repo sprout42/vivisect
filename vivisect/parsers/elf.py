@@ -6,6 +6,7 @@ import collections
 import Elf
 import Elf.elf_lookup as elf_lookup
 
+import envi
 import envi.bits as e_bits
 import envi.const as e_const
 
@@ -495,7 +496,11 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
             [s for s in makeSymbolTable(vw, sva, sva+size)]
 
         elif sname in (".bss",):
-            if vw.getName(fname + '.bss_temp') is None:
+            # see if the .bss is currently allocated
+            try:
+                vw.readMemory(sva, size)
+            except envi.SegmentationViolation as exc:
+
                 align = sec.sh_addralign
                 sz = ((align-1 + sec.sh_size) // align) * align
 
@@ -508,10 +513,14 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
                 sz = vw.addMemoryMap(base, 7, fname, b'\0' * sz)
 
                 vw.addSegment(base, sz, '.bss_temp', fname)
-                vw.makeName(base, fname + ".bss_temp")
+                vw.makeName(base, fname + ".bss_temp", makeuniq=True)
 
         elif sname in (".sbss", ".sdata"):
-            if vw.getName('_SDA_BASE_') is None:
+            # see if the .sbss or sdata section is currently allocated
+            try:
+                vw.readMemory(sva, size)
+            except envi.SegmentationViolation as exc:
+
                 align = sec.sh_addralign
                 sz = ((align-1 + sec.sh_size) // align) * align
 
@@ -524,10 +533,14 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
                 sz = vw.addMemoryMap(base, 7, fname, b'\0' * sz)
 
                 vw.addSegment(base, sz, '.sda_base', fname)
-                vw.makeName(base, "_SDA_BASE_")
+                vw.makeName(base, "_SDA_BASE_", makeuniq=True)
 
         elif sname in (".sbss2", ".sdata2"):
-            if vw.getName('_SDA2_BASE_') is None:
+            # see if the .sbss2 or sdata2 section is currently allocated
+            try:
+                vw.readMemory(sva, size)
+            except envi.SegmentationViolation as exc:
+
                 align = sec.sh_addralign
                 sz = ((align-1 + sec.sh_size) // align) * align
 
@@ -540,7 +553,7 @@ def loadElfIntoWorkspace(vw, elf, filename=None, baseaddr=None):
                 sz = vw.addMemoryMap(base, 7, fname, b'\0' * sz)
 
                 vw.addSegment(base, sz, '.sda2_base', fname)
-                vw.makeName(base, "_SDA2_BASE_")
+                vw.makeName(base, "_SDA2_BASE_", makeuniq=True)
 
         # If the section is really a string table, do it
         if sec.sh_type == Elf.SHT_STRTAB:
